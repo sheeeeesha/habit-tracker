@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #171717;
+  }
+
+  /* Remove or comment out this block if you don't want auto dark mode
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #0a0a0a;
+      --foreground: #ededed;
+    }
+  }
+  */
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-outfit), system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-lexend-giga), system-ui, sans-serif;
+  }
+
+  button, input, select, textarea {
+    font-family: var(--font-rubik), system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-exo {
+    font-family: var(--font-exo), system-ui, sans-serif;
+  }
+
+  .font-lexend {
+    font-family: var(--font-lexend-giga), system-ui, sans-serif;
+  }
+
+  .font-outfit {
+    font-family: var(--font-outfit), system-ui, sans-serif;
+  }
+
+  .font-rubik {
+    font-family: var(--font-rubik), system-ui, sans-serif;
+  }
+
+  .font-work {
+    font-family: var(--font-work-sans), system-ui, sans-serif;
+  }
+}
