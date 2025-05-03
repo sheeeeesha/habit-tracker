@@ -852,6 +852,7 @@ const UserProfileCard: React.FC<{
 }> = ({ user, navigate, setIsAuthenticated }) => {
   const [open, setOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const [avatarError, setAvatarError] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -869,13 +870,24 @@ const UserProfileCard: React.FC<{
   return (
     <div ref={profileRef} className="relative bg-white shadow sm:rounded-lg flex flex-col items-center p-4 w-72 min-w-[10rem] self-stretch cursor-pointer ml-4">
       <div className="flex flex-col items-center" onClick={() => setOpen(o => !o)}>
-        <Image
-          className="h-12 w-12 rounded-full mb-2 border-2 border-indigo-200"
-          src={user.avatar}
-          alt="User avatar"
-          width={48}
-          height={48}
-        />
+        <div className="relative h-12 w-12 rounded-full mb-2 border-2 border-indigo-200 overflow-hidden">
+          {avatarError ? (
+            <div className="w-full h-full bg-indigo-100 flex items-center justify-center">
+              <span className="text-indigo-600 text-lg font-semibold">
+                {user.name.charAt(0)}
+              </span>
+            </div>
+          ) : (
+            <Image
+              className="object-cover"
+              src={user.avatar}
+              alt="User avatar"
+              width={48}
+              height={48}
+              onError={() => setAvatarError(true)}
+            />
+          )}
+        </div>
         <div className="font-semibold text-gray-900 text-base text-center">{user.name}</div>
         <div className="text-xs text-gray-500 text-center mb-1">{user.email}</div>
         <svg className={`w-4 h-4 text-gray-400 mt-1 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

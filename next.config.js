@@ -8,6 +8,8 @@ const nextConfig = {
         pathname: '/api/portraits/**',
       },
     ],
+    domains: ['randomuser.me'],
+    unoptimized: true,
   },
 };
 
