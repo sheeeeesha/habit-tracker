@@ -525,10 +525,10 @@ const LandingPage: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) =
               playsInline
             />
             <div className="lg:text-center relative z-20">
-              <h1 className="mt-2 text-5xl leading-8 font-extrabold tracking-tight text-black sm:text-4xl font-lexend">
+              <h1 className="mt-2 text-3xl sm:text-4xl md:text-5xl leading-8 font-extrabold tracking-tight text-black font-lexend text-center">
                 Take Control of Your Habits
               </h1>
-              <p className="mt-4 max-w-2xl text-xl text-white lg:mx-auto font-rubik">
+              <p className="mt-4 max-w-2xl text-base sm:text-lg md:text-xl text-white lg:mx-auto font-rubik text-center">
                 Track, analyze, and improve your daily habits with our powerful analytics dashboard.
               </p>
               <div className="mt-8 flex justify-center">
