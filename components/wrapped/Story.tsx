@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CaretLeft, CaretRight, ICON_WEIGHT, X } from "../icons";
 
 export interface StorySlide {
   id: string;
@@ -147,14 +148,7 @@ export function Story({ slides, onExit, reduceMotion = false }: StoryProps) {
         className="absolute right-2 top-6 z-30 grid h-11 w-11 place-items-center rounded-full transition hover:bg-black/10 active:scale-90"
         style={{ marginTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden>
-          <path
-            d="M5 5l10 10M15 5L5 15"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-          />
-        </svg>
+        <X size={22} weight={ICON_WEIGHT} aria-hidden />
       </button>
 
       {/* Poster motif — decorative only, sits behind the type. */}
@@ -209,15 +203,7 @@ export function Story({ slides, onExit, reduceMotion = false }: StoryProps) {
           aria-label="Previous"
           className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full transition hover:bg-black/10 active:scale-90 disabled:opacity-25"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M15 5l-7 7 7 7"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CaretLeft size={22} weight={ICON_WEIGHT} aria-hidden />
         </button>
 
         <span
@@ -234,15 +220,7 @@ export function Story({ slides, onExit, reduceMotion = false }: StoryProps) {
           aria-label="Next"
           className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full transition hover:bg-black/10 active:scale-90 disabled:opacity-25"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M9 5l7 7-7 7"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CaretRight size={22} weight={ICON_WEIGHT} aria-hidden />
         </button>
       </div>
     </div>

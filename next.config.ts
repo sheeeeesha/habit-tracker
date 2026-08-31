@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Phosphor ships one module per icon behind a barrel file; without this the
+  // dev server compiles the whole set on every change.
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
   async headers() {
     return [
       {

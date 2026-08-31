@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { ICON_WEIGHT, X } from "./icons";
 
 interface SheetProps {
   open: boolean;
@@ -119,14 +120,7 @@ export function Sheet({
               aria-label="Close"
               className="tap-target -mt-1 -mr-2 grid place-items-center rounded-full text-bone/50 transition hover:bg-white/10 hover:text-bone active:scale-90"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path
-                  d="M5 5l10 10M15 5L5 15"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <X size={20} weight={ICON_WEIGHT} aria-hidden />
             </button>
           </div>
           {description && (

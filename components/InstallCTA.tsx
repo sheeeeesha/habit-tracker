@@ -5,42 +5,14 @@ import { Sheet } from "./Sheet";
 import { useInstall } from "@/lib/useInstall";
 import { useStore } from "@/lib/store";
 import { haptic } from "@/lib/confetti";
+import { Export, ICON_WEIGHT, PlusSquare } from "./icons";
 
 /** How long a dismissal sticks before the banner is allowed back. */
 const SNOOZE_DAYS = 14;
 
-const ShareIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 15V3m0 0L8.5 6.5M12 3l3.5 3.5"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-const PlusSquareIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <rect
-      x="3.5"
-      y="3.5"
-      width="17"
-      height="17"
-      rx="4.5"
-      stroke="currentColor"
-      strokeWidth="2"
-    />
-    <path d="M12 8.5v7M8.5 12h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
+/** iOS renders the share action as a box with an arrow leaving it. */
+const ShareIcon = () => <Export size={20} weight={ICON_WEIGHT} aria-hidden />;
+const PlusSquareIcon = () => <PlusSquare size={20} weight={ICON_WEIGHT} aria-hidden />;
 
 /**
  * Decides whether the add-to-home-screen CTA should be on screen at all.

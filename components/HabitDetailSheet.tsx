@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CaretLeft, CaretRight, ICON_WEIGHT } from "./icons";
 import { Sheet } from "./Sheet";
 import {
   addMonths,
@@ -189,7 +190,7 @@ export function HabitDetailSheet({ habit, open, onClose, onEdit }: HabitDetailSh
                 aria-label="Previous month"
                 className="tap-target grid place-items-center rounded-lg text-bone/50 transition hover:bg-white/10 hover:text-bone active:scale-90"
               >
-                &#8249;
+                <CaretLeft size={18} weight={ICON_WEIGHT} aria-hidden />
               </button>
               <span className="min-w-[5.5rem] text-center text-sm font-semibold tabular-nums">
                 {MONTH_SHORT[grid.monthStart.getMonth()]} {grid.monthStart.getFullYear()}
@@ -201,7 +202,7 @@ export function HabitDetailSheet({ habit, open, onClose, onEdit }: HabitDetailSh
                 aria-label="Next month"
                 className="tap-target grid place-items-center rounded-lg text-bone/50 transition hover:bg-white/10 hover:text-bone active:scale-90 disabled:opacity-25"
               >
-                &#8250;
+                <CaretRight size={18} weight={ICON_WEIGHT} aria-hidden />
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { Check, ICON_WEIGHT } from "./icons";
 import { burstConfetti, haptic } from "@/lib/confetti";
 import { accentOf } from "@/lib/palette";
 import { describeCadence, periodNoun, streakNoun } from "@/lib/habits";
@@ -19,18 +20,6 @@ interface HabitCardProps {
   onOpen: (habit: Habit) => void;
   index?: number;
 }
-
-const CheckGlyph = () => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M4.5 12.5l5 5 10-11"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 export function HabitCard({ habit, onOpen, index = 0 }: HabitCardProps) {
   const { state, bumpCheckIn } = useStore();
@@ -145,7 +134,7 @@ export function HabitCard({ habit, onOpen, index = 0 }: HabitCardProps) {
               }
             >
               {complete || target === 1 ? (
-                <CheckGlyph />
+                <Check size={26} weight={ICON_WEIGHT} aria-hidden />
               ) : !onDuty ? (
                 <span className="text-[0.6875rem] font-semibold uppercase tracking-wide">
                   Rest

@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Aurora } from "@/components/Aurora";
+import {
+  ArrowRight,
+  Check,
+  DotsThreeVertical,
+  ICON_WEIGHT,
+  Plus,
+} from "@/components/icons";
 import { HabitCard } from "@/components/HabitCard";
 import { HabitDetailSheet } from "@/components/HabitDetailSheet";
 import { HabitSheet } from "@/components/HabitSheet";
@@ -106,15 +113,7 @@ export default function HomePage() {
               aria-hidden
               className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-sunburn via-hyperpink to-ultra"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4.5 12.5l5 5 10-11"
-                  stroke="white"
-                  strokeWidth="3.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <Check size={17} weight="bold" color="#ffffff" aria-hidden />
             </span>
             <span className="text-[0.9375rem] font-bold tracking-tight">
               Streak<span className="text-hyperpink">Wrapped</span>
@@ -127,11 +126,7 @@ export default function HomePage() {
             aria-label="Settings"
             className="tap-target grid place-items-center rounded-full text-bone/55 transition hover:bg-white/10 hover:text-bone active:scale-90"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <circle cx="12" cy="5" r="1.9" fill="currentColor" />
-              <circle cx="12" cy="12" r="1.9" fill="currentColor" />
-              <circle cx="12" cy="19" r="1.9" fill="currentColor" />
-            </svg>
+            <DotsThreeVertical size={22} weight="fill" aria-hidden />
           </button>
         </header>
 
@@ -273,15 +268,7 @@ export default function HomePage() {
                   aria-hidden
                   className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/20 text-white transition group-hover:translate-x-1"
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M5 12h13m0 0l-5.5-5.5M18 12l-5.5 5.5"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ArrowRight size={20} weight={ICON_WEIGHT} aria-hidden />
                 </span>
               </div>
             </Link>
@@ -297,14 +284,7 @@ export default function HomePage() {
           aria-label="New habit"
           className="fixed right-4 z-30 inline-flex items-center gap-2 rounded-full bg-bone px-5 py-4 font-bold text-ink shadow-2xl transition active:scale-90 inset-safe-b sm:right-6"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 5v14M5 12h14"
-              stroke="currentColor"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Plus size={20} weight={ICON_WEIGHT} aria-hidden />
           <span className="text-sm">New habit</span>
         </button>
       )}

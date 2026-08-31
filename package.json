@@ -10,6 +10,7 @@
     "test": "node --import tsx --test lib/sync/merge.test.ts"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.109.0",
     "next": "16.3.3",
     "react": "19.2.8",
