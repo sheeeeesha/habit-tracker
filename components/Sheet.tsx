@@ -30,6 +30,14 @@ export function Sheet({
   const titleId = useId();
   const descId = useId();
 
+  // Callers pass `onClose` as an inline arrow, so its identity changes on every
+  // render of the parent. Holding it in a ref keeps it out of the effect's
+  // dependencies below — see the note there.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -56,7 +64,7 @@ export function Sheet({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !panelRef.current) return;
@@ -85,7 +93,14 @@ export function Sheet({
       document.body.style.paddingRight = paddingRight;
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+    // Deliberately only `open`.
+    //
+    // This effect moves focus on mount and restores it on cleanup, so it must
+    // run exactly once per open/close — not on every render. Depending on
+    // `onClose` re-ran it on each keystroke in any sheet containing a text
+    // field, and the cleanup then pulled focus out of the input the user was
+    // typing into, one character at a time.
+  }, [open]);
 
   if (!open) return null;
 
