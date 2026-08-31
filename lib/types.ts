@@ -48,7 +48,13 @@ export interface Prefs {
 }
 
 export interface SyncState {
-  /** Supabase user id this local database belongs to, if signed in. */
+  /**
+   * Which account this local database belongs to. Survives signing out, so
+   * signing back in as somebody else can be detected and the previous
+   * person's habits cleared instead of being merged into the new account.
+   */
+  ownerId: string | null;
+  /** The currently signed-in user, or null when signed out. */
   userId: string | null;
   /** Epoch ms of the last successful pull+push round trip. */
   lastSyncedAt: number | null;

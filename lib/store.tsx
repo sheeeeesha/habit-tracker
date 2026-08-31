@@ -21,6 +21,7 @@ const DEFAULT_PREFS: Prefs = {
 };
 
 const DEFAULT_SYNC: SyncState = {
+  ownerId: null,
   userId: null,
   lastSyncedAt: null,
   cursor: null,
@@ -327,6 +328,19 @@ export function resetAll() {
 /** Applies a merged result from the sync engine. */
 export function applyMerged(habits: Habit[], log: CompletionLog, sync: Partial<SyncState>) {
   update((s) => ({ ...s, habits, log, sync: { ...s.sync, ...sync } }));
+}
+
+/**
+ * Clears the habits belonging to a previous account without disturbing
+ * device-level preferences. Whether the install CTA was dismissed or motion is
+ * reduced has nothing to do with who is signed in.
+ */
+export function resetForAccount(ownerId: string) {
+  update((s) => ({
+    ...emptyState(),
+    prefs: s.prefs,
+    sync: { ...DEFAULT_SYNC, ownerId, userId: ownerId },
+  }));
 }
 
 /** Replaces everything — used by the backup importer. */

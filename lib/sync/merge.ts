@@ -140,6 +140,20 @@ export interface MergeInput {
   localLog: CompletionLog;
   remoteHabits: Habit[];
   remoteLog: CompletionLog;
+  /**
+   * Epoch ms of the last successful sync, or null when the remote side is a
+   * complete snapshot.
+   *
+   * This matters because an incremental pull only returns rows that changed
+   * since the cursor, so "absent from the remote side" is ambiguous: it can
+   * mean the server has never seen the row, or that the server has it and it
+   * simply has not changed. Treating both as "needs pushing" makes every sync
+   * re-upload the entire history forever.
+   *
+   * A row is only genuinely new to the server if it was also edited locally
+   * after the last sync completed.
+   */
+  pushedThrough?: number | null;
 }
 
 export interface PendingCheckin {
@@ -170,7 +184,13 @@ export function merge({
   localLog,
   remoteHabits,
   remoteLog,
+  pushedThrough = null,
 }: MergeInput): MergeResult {
+  // On a full snapshot every local-only row really is missing upstream. On an
+  // incremental pull only rows touched since the last sync can be.
+  const isNewToServer = (editedAt: number) =>
+    pushedThrough === null || editedAt > pushedThrough;
+
   const habits = new Map<string, Habit>();
   const habitsToPush: Habit[] = [];
 
@@ -180,8 +200,9 @@ export function merge({
     const remote = habits.get(local.id);
     if (!remote) {
       habits.set(local.id, local);
-      habitsToPush.push(local);
+      if (isNewToServer(local.updatedAt)) habitsToPush.push(local);
     } else if (local.updatedAt > remote.updatedAt) {
+      // Local demonstrably won a comparison, so it always needs pushing.
       habits.set(local.id, local);
       habitsToPush.push(local);
     }
@@ -220,7 +241,7 @@ export function merge({
         }
       } else if (l) {
         merged[day] = l;
-        checkinsToPush.push({ habitId, day, cell: l });
+        if (isNewToServer(l.t)) checkinsToPush.push({ habitId, day, cell: l });
       } else if (r) {
         merged[day] = r;
       }

@@ -198,6 +198,69 @@ describe("merge — check-ins", () => {
   });
 });
 
+describe("incremental pulls", () => {
+  // An incremental pull returns only what changed since the cursor, so most
+  // local rows are absent from the remote side while the server has them
+  // perfectly well. Treating that as "missing upstream" made every sync
+  // re-upload the whole history.
+  const local = {
+    localHabits: [habit("a", 1_000)],
+    localLog: log({ a: { "2026-03-01": [1, 1_000], "2026-03-02": [1, 1_100] } }),
+  };
+
+  it("does not re-push rows that merely did not change since the last sync", () => {
+    const result = merge({
+      ...local,
+      remoteHabits: [],
+      remoteLog: {},
+      pushedThrough: 5_000,
+    });
+
+    assert.deepEqual(result.habitsToPush, [], "an unchanged habit was re-pushed");
+    assert.deepEqual(result.checkinsToPush, [], "unchanged check-ins were re-pushed");
+    // Nothing is lost from the merged state — only the push list shrinks.
+    assert.equal(result.habits.length, 1);
+    assert.deepEqual(Object.keys(result.log.a).sort(), ["2026-03-01", "2026-03-02"]);
+  });
+
+  it("still pushes rows edited since the last sync", () => {
+    const result = merge({
+      localHabits: [habit("a", 9_000)],
+      localLog: log({ a: { "2026-03-01": [1, 1_000], "2026-03-03": [2, 9_500] } }),
+      remoteHabits: [],
+      remoteLog: {},
+      pushedThrough: 5_000,
+    });
+
+    assert.deepEqual(result.habitsToPush.map((h) => h.id), ["a"]);
+    assert.deepEqual(
+      result.checkinsToPush.map((c) => c.day),
+      ["2026-03-03"],
+      "only the day edited after the last sync should be pushed",
+    );
+  });
+
+  it("pushes everything when the remote side is a full snapshot", () => {
+    const result = merge({ ...local, remoteHabits: [], remoteLog: {}, pushedThrough: null });
+    assert.equal(result.habitsToPush.length, 1);
+    assert.equal(result.checkinsToPush.length, 2);
+  });
+
+  it("still pushes a local row that genuinely won a comparison", () => {
+    // Losing to nothing is different from beating something: if local wins on
+    // timestamps it must be pushed regardless of the watermark.
+    const result = merge({
+      localHabits: [habit("a", 2_000, { name: "local wins" })],
+      localLog: log({ a: { "2026-03-01": [7, 2_000] } }),
+      remoteHabits: [habit("a", 1_000, { name: "remote" })],
+      remoteLog: log({ a: { "2026-03-01": [1, 1_000] } }),
+      pushedThrough: 9_999_999,
+    });
+    assert.deepEqual(result.habitsToPush.map((h) => h.id), ["a"]);
+    assert.deepEqual(result.checkinsToPush.map((c) => c.day), ["2026-03-01"]);
+  });
+});
+
 describe("row conversion", () => {
   it("round-trips a habit through the Postgres row shape", () => {
     const original = habit("a", 1_700_000_000_000, {

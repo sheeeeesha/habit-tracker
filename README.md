@@ -251,8 +251,18 @@ has a loser.
   with a timestamp, so undoing a check-in beats a stale one on the server
   instead of silently reappearing.
 - **Signing into a different account wipes local data first**, so a shared
-  device never merges one person's habits into another's. Signing *out* keeps
-  them, since they are still usable offline.
+  device never merges one person's habits into another's. That check reads
+  `ownerId`, which records who the local database belongs to and survives
+  signing out — the signed-in `userId` does not, so a sign-out between the two
+  accounts would walk straight past the guard. Signing *out* keeps the habits,
+  since they are still usable offline; device preferences survive the wipe too,
+  having nothing to do with who is signed in.
+- **An incremental pull returns only what changed**, so a local row missing
+  from the response usually means "unchanged upstream", not "never uploaded".
+  A row is queued for push only if it also beat the remote copy or was edited
+  since the last successful sync. Without that, every sync re-uploads the
+  entire history — harmless, since the conditional upsert makes it a no-op,
+  but it grows forever and fires on every check-in.
 
 ### What is tested
 

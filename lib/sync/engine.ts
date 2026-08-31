@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabase, isSyncConfigured } from "../supabase/client";
-import { applyMerged, readState, resetAll, setSync } from "../store";
+import { applyMerged, readState, resetForAccount, setSync } from "../store";
 import {
   checkinToRow,
   habitFromRow,
@@ -97,14 +97,19 @@ async function runSync(): Promise<SyncOutcome> {
   const userId = session.user.id;
 
   // Signing into a different account on the same device must not merge the
-  // previous person's habits into the new one.
-  if (state.sync.userId && state.sync.userId !== userId) {
-    resetAll();
-    setSync({ userId, cursor: null, lastSyncedAt: null });
+  // previous person's habits into the new one. This checks `ownerId`, which
+  // survives signing out — `userId` does not, so a sign-out between the two
+  // accounts would otherwise slip straight past this.
+  if (state.sync.ownerId && state.sync.ownerId !== userId) {
+    resetForAccount(userId);
   }
 
   const before = readState();
-  const cursor = before.sync.userId === userId ? before.sync.cursor : null;
+  const sameAccount = before.sync.ownerId === userId;
+  const cursor = sameAccount ? before.sync.cursor : null;
+  // Only meaningful alongside a cursor: with a full pull every local-only row
+  // genuinely needs pushing.
+  const pushedThrough = cursor ? before.sync.lastSyncedAt : null;
   const pullStartedAt = Date.now();
 
   try {
@@ -118,6 +123,7 @@ async function runSync(): Promise<SyncOutcome> {
       localLog: before.log,
       remoteHabits: habitRows.map(habitFromRow),
       remoteLog: logFromRows(checkinRows),
+      pushedThrough,
     });
 
     // A record that cannot satisfy the schema is skipped rather than retried
@@ -138,6 +144,7 @@ async function runSync(): Promise<SyncOutcome> {
     );
 
     applyMerged(merged.habits, merged.log, {
+      ownerId: userId,
       userId,
       lastSyncedAt: Date.now(),
       cursor: new Date(pullStartedAt - CURSOR_SAFETY_MS).toISOString(),
@@ -180,7 +187,8 @@ export async function signOut(): Promise<void> {
   if (!supabase) return;
   await supabase.auth.signOut();
   // The local database stays on the device: signing out should not destroy
-  // habits the person can still use offline. The next sign-in decides whether
-  // to adopt or replace it.
+  // habits the person can still use offline. `ownerId` is deliberately kept so
+  // the next sign-in can tell "same person coming back" from "somebody else on
+  // a shared device" and clear the data in the second case.
   setSync({ userId: null, cursor: null, lastSyncedAt: null });
 }
