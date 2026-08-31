@@ -196,8 +196,28 @@ failure never blocks the tap. Being offline is a normal state, not an error.
    in the SQL editor, or `supabase db push` with the CLI.
 3. Copy `.env.example` to `.env.local` and fill in the project URL and anon key
    from **Project Settings ▸ Data API**.
-4. Under **Authentication ▸ URL Configuration**, add your site URL to the
-   redirect allowlist so the magic link comes back to the right place.
+4. Under **Authentication ▸ URL Configuration**, set **Site URL** to your
+   deployed origin and add `http://localhost:3000/**` to **Redirect URLs**.
+   Set only the first and every local sign-in link will bounce you to
+   production.
+5. **Configure custom SMTP before you rely on this.** Supabase's built-in
+   mailer is capped at **two messages an hour**, carries no delivery SLA, and
+   is documented as non-production. Two sign-in attempts and you are locked out
+   for the hour.
+
+   Any provider works; with [Resend](https://resend.com) it is a verified
+   domain plus, under **Authentication ▸ SMTP Settings**:
+
+   | Field | Value |
+   | --- | --- |
+   | Host | `smtp.resend.com` |
+   | Port | `465` |
+   | Username | `resend` |
+   | Password | your Resend API key |
+   | Sender | an address on your verified domain |
+
+   Enabling custom SMTP starts you at 30 messages an hour, adjustable under
+   **Authentication ▸ Rate Limits**.
 
 The anon key is meant to be public. Every table is behind row-level security,
 so it can only ever read and write the signed-in user's own rows — which the
