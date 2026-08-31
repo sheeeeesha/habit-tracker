@@ -65,7 +65,7 @@ Then open <http://localhost:3000>.
 npm run build && npm start
 ```
 
-`npm test` runs the sync-merge tests, `npm run lint` runs ESLint, and
+`npm test` runs the merge and schema tests, `npm run lint` runs ESLint, and
 TypeScript is checked as part of `build`.
 
 ### Testing the install prompt
@@ -236,14 +236,27 @@ has a loser.
 
 ### What is tested
 
-`npm test` covers the merge: last-write-wins in both directions, ties,
-tombstone propagation, per-day independence, convergence (a second merge pushes
-nothing), cleared-day precedence, and the row conversions.
+`npm test` runs both halves of the sync contract.
 
-The migration was applied to a real PostgreSQL 18 instance and its behaviour
-checked directly — stale writes rejected, newer writes accepted, check-ins for
-an unknown habit skipped rather than failing the batch, and RLS proven to hide
-one user's rows from another and to block writing into them.
+**The merge** (`lib/sync/merge.test.ts`) — last-write-wins in both directions,
+ties, tombstone propagation, per-day independence, convergence (a second merge
+pushes nothing), cleared-day precedence, and the row conversions.
+
+**The schema** (`lib/sync/schema.test.ts`) — the migration is applied to a real
+Postgres compiled to WebAssembly, verbatim, with only Supabase's `auth.uid()`,
+`auth.users` and default grants stubbed around it. It then checks the things
+the SQL is responsible for: stale writes rejected and newer ones accepted for
+both tables, a cleared day beating a stale check-in, a check-in for an unknown
+habit skipped instead of failing the batch alongside it, `synced_at` advancing
+so pull cursors move, `user_id` taken from the session rather than the payload,
+and the migration being safe to re-apply.
+
+RLS is exercised **as the `authenticated` role**, not merely asserted to be
+switched on — the table owner bypasses row-level security, so a test that
+queries as the owner proves nothing. Under that role one user cannot read
+another's habits or check-ins, cannot insert a row owned by someone else, and
+cannot reassign their own row away. Weakening either policy to `using (true)`
+fails three of those tests, which is the check that they are worth having.
 
 The one path not exercised end to end is the wire between the client and a live
 Supabase project (auth callback and PostgREST). Run through a sign-in once

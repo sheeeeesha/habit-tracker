@@ -15,8 +15,6 @@
 --  * Deletes are tombstones (`deleted_at`), never row removal, so a deletion
 --    on one device reaches the others.
 
-create extension if not exists "pgcrypto";
-
 -- ---------------------------------------------------------------- habits --
 
 create table if not exists public.habits (

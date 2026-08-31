@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --import tsx --test lib/sync/merge.test.ts"
+    "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -17,6 +17,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.2",
