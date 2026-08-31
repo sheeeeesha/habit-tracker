@@ -74,6 +74,9 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
   const { status: storage, request: requestStorage } = useStorageStatus();
 
   const archived = habits.filter((h) => h.archivedAt);
+  // Once history is mirrored to an account, "no server" stops being true and
+  // "clearing site data wipes it" stops being the whole story.
+  const signedIn = !!state.sync.userId;
 
   function exportData() {
     const blob = new Blob([JSON.stringify(state, null, 2)], {
@@ -211,8 +214,19 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
             Your data
           </p>
           <p className="mb-3 text-xs leading-relaxed text-bone/40">
-            Everything lives in this browser on this device — no account, no server.
-            Clearing site data wipes it, so export a backup if it matters.
+            {signedIn ? (
+              <>
+                This device holds the copy the app actually reads, and a backup
+                is mirrored to your account. Clearing site data here is
+                recoverable — signing back in pulls your history down again.
+              </>
+            ) : (
+              <>
+                Everything lives in this browser on this device — no account, no
+                server. Clearing site data wipes it, so export a backup if it
+                matters.
+              </>
+            )}
           </p>
 
           {storage?.supported && (
