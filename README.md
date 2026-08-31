@@ -244,6 +244,36 @@ against your own project before trusting it with real history.
 
 ---
 
+## Deploying
+
+The app builds to fully static output, so any host works, but Vercel needs no
+configuration at all — the framework is detected and there is nothing to set
+beyond environment variables.
+
+1. **Import the repo** at [vercel.com/new](https://vercel.com/new). Next.js is
+   detected; leave the build settings alone.
+2. **Add the environment variables** *before* the first build if you want sync:
+   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, under
+   Settings ▸ Environment Variables. `NEXT_PUBLIC_*` values are inlined at
+   build time, so adding them later needs a redeploy to take effect.
+3. **Add the domain** under Settings ▸ Domains.
+4. **Create the DNS record Vercel shows you.** For a subdomain that is a CNAME
+   pointing at a `*.vercel-dns*.com` host; Vercel displays the exact value,
+   which is account-specific. Add it wherever the domain's nameservers live —
+   if they are not Vercel's, that is your registrar's DNS panel, not Vercel.
+5. **Add the deployed URL to Supabase** under Authentication ▸ URL
+   Configuration, or magic links will bounce.
+
+### Notes for a custom domain
+
+- The manifest uses a relative `start_url`, so the PWA install and the service
+  worker work on any hostname with no changes.
+- Habits are stored per-origin. Moving the app to a new domain does not carry
+  local data across — signing in is what moves history between origins, which
+  is one more reason to set sync up before you hand the link to anyone.
+
+---
+
 ## Accessibility
 
 Real buttons everywhere with descriptive `aria-label`s; sheets trap focus,
