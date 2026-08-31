@@ -1,36 +1,156 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StreakWrapped
 
-## Getting Started
+A habit tracker with two jobs: make checking something off feel good, and once a
+year's worth of check-ins has piled up, replay it as a Spotify-Wrapped-style
+story.
 
-First, run the development server:
+Everything lives in the browser — no account, no server, no network calls.
+
+---
+
+## What it does
+
+**Create a habit.** The composer captures the details that actually change how
+tracking behaves:
+
+| Detail | Effect on tracking |
+| --- | --- |
+| **Cadence** — daily / weekly / monthly | Which calendar bucket the target resets in |
+| **Target** — 1–99 per period | How many check-ins complete one period |
+| **Weekdays** (daily only) | Days you leave off are rest days: they never break a streak |
+| **Time of day** | Labelling only — shown on the card and detail sheet |
+| **Start date** | Periods before it are ignored by streaks and rates |
+| Emoji + colour | Identity across cards, calendar and Wrapped |
+
+**Check it off.** One tap on the card. Habits with a target above 1 show a
+segmented bar and count up; once-a-day habits show a seven-day history strip.
+Finishing a period fires confetti and a haptic tick. `Undo` steps back a
+check-in, and any past day can be corrected by tapping it in the calendar.
+
+**Streaks that don't lie.** A streak counts consecutive *completed periods*:
+
+- The period in progress is graceful — not having finished today yet doesn't
+  wipe your streak, it just isn't counted until you check in.
+- Rest days on a weekday-limited habit are skipped, not treated as misses.
+- Weekly and monthly habits streak in weeks and months, not days.
+
+**Your Wrapped.** After 10 check-ins, `/wrapped` unlocks a tap-through story:
+totals, active and perfect days, longest run, top habits, strongest weekday,
+month-by-month shape, hit rate, and a habit personality. The last slide renders
+a 1080×1920 poster on a canvas and hands it to the Web Share sheet (or downloads
+it as a PNG where sharing files isn't supported).
+
+**Add to home screen.** A CTA on the home feed installs the app. On Android and
+desktop Chromium it fires the real install prompt; on iOS it opens illustrated
+Share ▸ Add to Home Screen instructions. Once installed it never reappears on
+its own — Settings ▸ *Home screen shortcut* ▸ **Show again** is the only way
+back. Dismissing with *Not now* snoozes it for 14 days.
+
+---
+
+## Running it
+
+```bash
+npm install
+```
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build && npm start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`npm run lint` runs ESLint. TypeScript is checked as part of `build`.
 
-## Learn More
+### Testing the install prompt
 
-To learn more about Next.js, take a look at the following resources:
+`beforeinstallprompt` only fires over HTTPS or on `localhost`, in a Chromium
+browser, when the manifest and a service worker with a fetch handler are both
+present. All of that is wired up, so `npm run dev` on localhost is enough to see
+the real prompt in Chrome or Edge. iOS has no programmatic install at all —
+that path always shows the instruction sheet.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The service worker is network-first for pages and skips asset caching on
+`localhost`, so it never serves you stale dev chunks.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## How it's built
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4. No UI
+libraries, no state library, no charting library — the bars, rings, calendar,
+confetti and share poster are all hand-rolled.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  layout.tsx           fonts, PWA metadata, beforeinstallprompt capture
+  page.tsx             today screen: hero, filters, habit list, install CTA
+  wrapped/page.tsx     the story, or the "not yet" screen
+components/
+  HabitCard            check-off button, progress bar, 7-day strip
+  HabitSheet           create / edit composer
+  HabitDetailSheet     stats + tappable calendar
+  InstallCTA           add-to-home-screen banner and iOS instructions
+  MenuSheet            name, motion, archive, backup import/export
+  Sheet                bottom-sheet primitive (focus trap, scroll lock)
+  wrapped/             Story player, slides, motifs, CountUp
+lib/
+  date.ts              local-timezone date keys and period arithmetic
+  streak.ts            the streak / completion engine
+  wrapped.ts           derives every Wrapped statistic
+  store.tsx            useSyncExternalStore over localStorage
+  shareCard.ts         canvas poster + Web Share
+  useInstall.ts        beforeinstallprompt, standalone + platform detection
+public/
+  manifest.webmanifest, sw.js, offline.html, icons/
+```
+
+### Notes on a few decisions
+
+**Dates are local, always.** Check-ins are keyed by a local `YYYY-MM-DD` string
+and periods are identified by their start date, so nothing drifts across a UTC
+boundary and there are no ISO-week/year-boundary bugs.
+
+**The store lives outside React.** `localStorage` is a browser-only external
+system, so it's a plain subscribable store read through `useSyncExternalStore`.
+The server render and hydration agree, there's no cascading re-render, and
+cross-tab sync comes for free.
+
+**Bold type on flat colour.** Wrapped's own rule, and the reason the archetype
+slide knocks a solid panel out of its gradient before setting type on it.
+
+---
+
+## Data
+
+One `localStorage` key, `streakwrapped.v1`:
+
+```jsonc
+{
+  "version": 1,
+  "name": "…",
+  "habits": [{ "id", "name", "emoji", "accent", "cadence", "target",
+               "weekdays", "timeOfDay", "startDate", "createdAt" }],
+  "log": { "<habitId>": { "2026-08-31": 3 } },   // date -> check-ins that day
+  "prefs": { "installDismissedUntil", "installed", "installRequested",
+             "reduceMotion" }
+}
+```
+
+Settings ▸ *Your data* exports this as JSON and imports it back. Clearing site
+data wipes it, so that's the backup route.
+
+---
+
+## Accessibility
+
+Real buttons everywhere with descriptive `aria-label`s; sheets trap focus,
+restore it on close, and close on Escape; the story is fully keyboard-driven
+(arrows, space, Escape) with visible prev/next controls rather than invisible
+tap zones alone; 44px minimum touch targets; pinch-zoom is left enabled. Motion
+respects `prefers-reduced-motion`, and Settings ▸ *Reduce motion* forces it on —
+which also turns off the story's auto-advance so slides only move on input.

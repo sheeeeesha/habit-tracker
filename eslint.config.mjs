@@ -1,16 +1,10 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+// eslint-config-next 16 ships native flat configs; `core-web-vitals` already
+// bundles the TypeScript rules, so FlatCompat is not needed.
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+const config = [
+  { ignores: [".next/**", "out/**", "node_modules/**", "public/sw.js"] },
+  ...nextCoreWebVitals,
 ];
 
-export default eslintConfig;
+export default config;
