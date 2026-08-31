@@ -21,7 +21,7 @@ tracking behaves:
 | **Weekdays** (daily only) | Days you leave off are rest days: they never break a streak |
 | **Time of day** | Labelling only — shown on the card and detail sheet |
 | **Start date** | Periods before it are ignored by streaks and rates |
-| Emoji + colour | Identity across cards, calendar and Wrapped |
+| Icon + colour | Identity across cards, calendar, Wrapped and the share card |
 
 **Check it off.** One tap on the card. Habits with a target above 1 show a
 segmented bar and count up; once-a-day habits show a seven-day history strip.
@@ -127,6 +127,13 @@ system, so it's a plain subscribable store read through `useSyncExternalStore`.
 The server render and hydration agree, there's no cascading re-render, and
 cross-tab sync comes for free.
 
+**No emoji anywhere.** A habit's mark is a key into a curated set of 48
+Phosphor glyphs, not a literal emoji character. Emoji render as a different
+picture on every OS and version — the one thing an interface trying to look
+deliberate cannot afford. The glyphs are stored as raw path data on Phosphor's
+256 grid and drawn twice from that single source: inline SVG in the DOM, and
+`Path2D` on the share card's canvas. Anything else lets the two drift.
+
 **Bold type on flat colour.** Wrapped's own rule, and the reason the archetype
 slide knocks a solid panel out of its gradient before setting type on it.
 
@@ -140,7 +147,7 @@ One `localStorage` key, `streakwrapped.v1`:
 {
   "version": 2,
   "name": "…",
-  "habits": [{ "id", "name", "emoji", "accent", "cadence", "target",
+  "habits": [{ "id", "name", "icon", "accent", "cadence", "target",
                "weekdays", "timeOfDay", "startDate", "createdAt",
                "updatedAt", "archivedAt?", "deletedAt?" }],
   // date -> { n: check-ins, t: when it was written }

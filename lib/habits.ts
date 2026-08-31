@@ -1,4 +1,5 @@
 import { WEEKDAY_NAMES, todayKey } from "./date";
+import { DEFAULT_HABIT_ICON } from "./habitIcons";
 import type { Habit, HabitDraft, TimeOfDay } from "./types";
 
 export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -70,7 +71,7 @@ export function fullWeekdayList(weekdays: number[]): string {
 export function emptyDraft(accent: Habit["accent"]): HabitDraft {
   return {
     name: "",
-    emoji: "🔥",
+    icon: DEFAULT_HABIT_ICON,
     accent,
     cadence: "daily",
     target: 1,
@@ -82,12 +83,12 @@ export function emptyDraft(accent: Habit["accent"]): HabitDraft {
 
 /** Ideas offered on the empty state so a first habit is one tap away. */
 export const STARTER_HABITS: Array<
-  Pick<HabitDraft, "name" | "emoji" | "cadence" | "target" | "weekdays">
+  Pick<HabitDraft, "name" | "icon" | "cadence" | "target" | "weekdays">
 > = [
-  { name: "Drink water", emoji: "💧", cadence: "daily", target: 8, weekdays: ALL_WEEKDAYS },
-  { name: "Read", emoji: "📚", cadence: "daily", target: 1, weekdays: ALL_WEEKDAYS },
-  { name: "Move your body", emoji: "🏃", cadence: "weekly", target: 3, weekdays: ALL_WEEKDAYS },
-  { name: "Deep clean", emoji: "🧹", cadence: "monthly", target: 2, weekdays: ALL_WEEKDAYS },
-  { name: "Sleep by 11", emoji: "😴", cadence: "daily", target: 1, weekdays: [0, 1, 2, 3, 4] },
-  { name: "Call family", emoji: "☎️", cadence: "weekly", target: 1, weekdays: ALL_WEEKDAYS },
+  { name: "Drink water", icon: "water", cadence: "daily", target: 8, weekdays: ALL_WEEKDAYS },
+  { name: "Read", icon: "book", cadence: "daily", target: 1, weekdays: ALL_WEEKDAYS },
+  { name: "Move your body", icon: "run", cadence: "weekly", target: 3, weekdays: ALL_WEEKDAYS },
+  { name: "Deep clean", icon: "clean", cadence: "monthly", target: 2, weekdays: ALL_WEEKDAYS },
+  { name: "Sleep by 11", icon: "bed", cadence: "daily", target: 1, weekdays: [0, 1, 2, 3, 4] },
+  { name: "Call family", icon: "call", cadence: "weekly", target: 1, weekdays: ALL_WEEKDAYS },
 ];

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Aurora } from "@/components/Aurora";
+import { HabitTile } from "@/components/HabitGlyph";
 import {
   ArrowRight,
   Check,
   DotsThreeVertical,
+  Fire,
   ICON_WEIGHT,
   Plus,
 } from "@/components/icons";
@@ -18,7 +20,7 @@ import { MenuSheet } from "@/components/MenuSheet";
 import { ProgressRing } from "@/components/ProgressRing";
 import { prettyDate, today } from "@/lib/date";
 import { STARTER_HABITS, streakNoun } from "@/lib/habits";
-import { accentOf } from "@/lib/palette";
+import type { AccentKey } from "@/lib/palette";
 import { isOnDutyToday, periodProgress, todaySummary } from "@/lib/streak";
 import { useStore } from "@/lib/store";
 import { clearUrlFlag, useUrlFlag } from "@/lib/useUrlFlag";
@@ -32,6 +34,16 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: "daily", label: "Daily" },
   { key: "weekly", label: "Weekly" },
   { key: "monthly", label: "Monthly" },
+];
+
+/** Keeps the starter grid from putting two of the same colour side by side. */
+const STARTER_ACCENTS: AccentKey[] = [
+  "hyperpink",
+  "acid",
+  "electric",
+  "ultra",
+  "sunburn",
+  "fresh",
 ];
 
 function greeting(): string {
@@ -187,9 +199,12 @@ export default function HomePage() {
                     </p>
                     <p className="mt-1.5 text-sm text-bone/55">checked in today</p>
                     {summary.topHabit && summary.topStreak > 0 && (
-                      <p className="mt-0.5 truncate text-sm font-semibold text-bone/80">
-                        &#128293; {streakNoun(summary.topHabit, summary.topStreak)} on{" "}
-                        {summary.topHabit.name}
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm font-semibold text-bone/80">
+                        <Fire size={14} weight="fill" className="shrink-0 text-sunburn" aria-hidden />
+                        <span className="truncate">
+                          {streakNoun(summary.topHabit, summary.topStreak)} on{" "}
+                          {summary.topHabit.name}
+                        </span>
                       </p>
                     )}
                   </>
@@ -347,9 +362,7 @@ function EmptyState({
       </p>
       <ul className="grid grid-cols-2 gap-2.5">
         {STARTER_HABITS.map((s, i) => {
-          const a = accentOf(
-            ["hyperpink", "acid", "electric", "ultra", "sunburn", "fresh"][i % 6],
-          );
+          const accentKey = STARTER_ACCENTS[i % STARTER_ACCENTS.length];
           return (
             <li key={s.name}>
               <button
@@ -357,13 +370,12 @@ function EmptyState({
                 onClick={() => onPick(s)}
                 className="h-full w-full rounded-2xl border border-white/10 bg-white/4 p-3.5 text-left transition hover:bg-white/8 active:scale-95"
               >
-                <span
-                  aria-hidden
-                  className="mb-2 grid h-10 w-10 place-items-center rounded-xl text-lg"
-                  style={{ background: a.hex }}
-                >
-                  {s.emoji}
-                </span>
+                <HabitTile
+                  icon={s.icon}
+                  accent={accentKey}
+                  size={40}
+                  className="mb-2"
+                />
                 <span className="block text-sm font-semibold leading-tight text-bone">
                   {s.name}
                 </span>

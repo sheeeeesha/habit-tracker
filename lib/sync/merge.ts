@@ -1,4 +1,5 @@
 import type { Cell, CompletionLog } from "../log";
+import { habitIcon } from "../habitIcons";
 import type { Habit, TimeOfDay } from "../types";
 import type { AccentKey } from "../palette";
 import type { Cadence } from "../date";
@@ -10,7 +11,7 @@ import type { Cadence } from "../date";
 export interface HabitRow {
   id: string;
   name: string;
-  emoji: string;
+  icon: string;
   accent: string;
   cadence: string;
   target: number;
@@ -70,7 +71,7 @@ export function habitToRow(h: Habit): Omit<HabitRow, "synced_at"> {
   return {
     id: h.id,
     name: h.name,
-    emoji: h.emoji,
+    icon: h.icon,
     accent: h.accent,
     cadence: h.cadence,
     target: h.target,
@@ -90,7 +91,7 @@ export function habitFromRow(r: HabitRow): Habit {
   return {
     id: r.id,
     name: r.name,
-    emoji: r.emoji,
+    icon: habitIcon(r.icon).key,
     accent: r.accent as AccentKey,
     cadence: r.cadence as Cadence,
     target: r.target,

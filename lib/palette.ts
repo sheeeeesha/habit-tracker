@@ -46,9 +46,3 @@ export function accentOf(key: string): Accent {
 export function nextAccent(usedCount: number): AccentKey {
   return ACCENT_KEYS[usedCount % ACCENT_KEYS.length];
 }
-
-export const EMOJI_CHOICES = [
-  "🔥", "💪", "🏃", "🧘", "📚", "💧", "🥗", "😴",
-  "🎸", "🧠", "✍️", "🎨", "🧹", "💰", "☎️", "🌱",
-  "🚭", "🧴", "🦷", "🚶", "🏋️", "🍎", "☕", "🎯",
-];

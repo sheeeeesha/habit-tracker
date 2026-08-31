@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CaretLeft, CaretRight, ICON_WEIGHT } from "./icons";
+import { HabitTile } from "./HabitGlyph";
 import { Sheet } from "./Sheet";
 import {
   addMonths,
@@ -133,13 +134,7 @@ export function HabitDetailSheet({ habit, open, onClose, onEdit }: HabitDetailSh
     >
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-2xl"
-            style={{ background: accent.hex }}
-          >
-            {habit.emoji}
-          </span>
+          <HabitTile icon={habit.icon} accent={habit.accent} size={56} glow />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-bone">
               {cadenceNoun(habit)} &middot; {TIME_OF_DAY_LABEL[habit.timeOfDay]}

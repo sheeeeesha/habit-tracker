@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Sheet } from "./Sheet";
 import { replaceAll, useStore } from "@/lib/store";
 import { useInstall } from "@/lib/useInstall";
-import { accentOf } from "@/lib/palette";
+import { HabitTile } from "./HabitGlyph";
 import { describeCadence } from "@/lib/habits";
 import { formatBytes, useStorageStatus } from "@/lib/persistence";
 import { SyncSection } from "./SyncSection";
@@ -179,13 +179,12 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
                   key={h.id}
                   className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/4 px-3 py-2.5"
                 >
-                  <span
-                    aria-hidden
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base opacity-60"
-                    style={{ background: accentOf(h.accent).hex }}
-                  >
-                    {h.emoji}
-                  </span>
+                  <HabitTile
+                    icon={h.icon}
+                    accent={h.accent}
+                    size={36}
+                    className="opacity-60"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-bone/70">
                       {h.name}

@@ -23,7 +23,7 @@ create table if not exists public.habits (
   id          text        primary key,
   user_id     uuid        not null references auth.users (id) on delete cascade,
   name        text        not null,
-  emoji       text        not null default '🔥',
+  icon        text        not null default 'fire',
   accent      text        not null default 'hyperpink',
   cadence     text        not null check (cadence in ('daily', 'weekly', 'monthly')),
   target      integer     not null check (target between 1 and 99),
@@ -130,7 +130,7 @@ begin
       h ->> 'id'                                        as id,
       auth.uid()                                        as user_id,
       h ->> 'name'                                      as name,
-      coalesce(h ->> 'emoji', '🔥')                     as emoji,
+      coalesce(h ->> 'icon', 'fire')                    as icon,
       coalesce(h ->> 'accent', 'hyperpink')             as accent,
       h ->> 'cadence'                                   as cadence,
       (h ->> 'target')::integer                         as target,
@@ -145,16 +145,16 @@ begin
     from jsonb_array_elements(payload) as h
   )
   insert into public.habits as t (
-    id, user_id, name, emoji, accent, cadence, target, weekdays,
+    id, user_id, name, icon, accent, cadence, target, weekdays,
     time_of_day, start_date, created_at, updated_at, archived_at, deleted_at
   )
   select
-    id, user_id, name, emoji, accent, cadence, target, weekdays,
+    id, user_id, name, icon, accent, cadence, target, weekdays,
     time_of_day, start_date, created_at, updated_at, archived_at, deleted_at
   from incoming
   on conflict (id) do update set
     name        = excluded.name,
-    emoji       = excluded.emoji,
+    icon        = excluded.icon,
     accent      = excluded.accent,
     cadence     = excluded.cadence,
     target      = excluded.target,

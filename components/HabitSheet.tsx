@@ -3,7 +3,13 @@
 import { useMemo, useState } from "react";
 import { Sheet } from "./Sheet";
 import { todayKey, WEEKDAY_LABELS, WEEKDAY_NAMES } from "@/lib/date";
-import { ACCENT_KEYS, accentOf, EMOJI_CHOICES } from "@/lib/palette";
+import { ACCENT_KEYS, accentOf } from "@/lib/palette";
+import {
+  HABIT_ICON_GROUPS,
+  HABIT_ICON_KEYS,
+  HABIT_ICONS,
+} from "@/lib/habitIcons";
+import { HabitIconSvg, HabitTile } from "./HabitGlyph";
 import {
   ALL_WEEKDAYS,
   describeCadence,
@@ -153,17 +159,11 @@ export function HabitSheet({ open, onClose, habit, seed }: HabitSheetProps) {
       }
     >
       <div className="space-y-7">
-        {/* Name + emoji ------------------------------------------------ */}
+        {/* Name + icon ------------------------------------------------- */}
         <div>
           <Label>What are you tracking?</Label>
           <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-2xl"
-              style={{ background: accent.hex }}
-            >
-              {draft.emoji}
-            </span>
+            <HabitTile icon={draft.icon} accent={draft.accent} size={56} glow />
             <div className="min-w-0 flex-1">
               <input
                 data-autofocus
@@ -183,22 +183,46 @@ export function HabitSheet({ open, onClose, habit, seed }: HabitSheetProps) {
             </div>
           </div>
 
-          <div className="edge-rail mt-3 py-1">
-            {EMOJI_CHOICES.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => set("emoji", e)}
-                aria-label={`Icon ${e}`}
-                aria-pressed={draft.emoji === e}
-                className={`grid h-11 w-11 place-items-center rounded-xl text-xl transition active:scale-90 ${
-                  draft.emoji === e
-                    ? "bg-white/18 ring-2 ring-white/40"
-                    : "bg-white/6 hover:bg-white/12"
-                }`}
-              >
-                {e}
-              </button>
+          {/* Icon picker. Grouped and scrollable rather than a long rail:
+              48 icons in one horizontal strip is unnavigable on a phone. */}
+          <div className="mt-3 max-h-56 space-y-3 overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-white/4 p-3">
+            {HABIT_ICON_GROUPS.map((group) => (
+              <div key={group}>
+                <p className="mb-1.5 text-[0.625rem] font-bold uppercase tracking-[0.14em] text-bone/35">
+                  {group}
+                </p>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {HABIT_ICON_KEYS.filter((k) => HABIT_ICONS[k].group === group).map(
+                    (key) => {
+                      const active = draft.icon === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => set("icon", key)}
+                          title={HABIT_ICONS[key].label}
+                          aria-label={HABIT_ICONS[key].label}
+                          aria-pressed={active}
+                          className={`grid aspect-square place-items-center rounded-xl transition active:scale-90 ${
+                            active ? "" : "bg-white/6 hover:bg-white/14"
+                          }`}
+                          style={
+                            active
+                              ? { background: accent.hex, color: accent.ink }
+                              : undefined
+                          }
+                        >
+                          <HabitIconSvg
+                            icon={key}
+                            size={20}
+                            color={active ? accent.ink : "rgba(246,242,233,.7)"}
+                          />
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </div>

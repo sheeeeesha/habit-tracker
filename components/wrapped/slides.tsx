@@ -3,6 +3,7 @@
 import { CountUp } from "./CountUp";
 import type { StorySlide } from "./Story";
 import { accentOf } from "@/lib/palette";
+import { HabitIconSvg, HabitTile } from "../HabitGlyph";
 import { MONTH_SHORT, parseKey } from "@/lib/date";
 import { frequencyPhrase, weekdayName, type WrappedStats } from "@/lib/wrapped";
 import { streakNoun } from "@/lib/habits";
@@ -209,9 +210,7 @@ export function buildSlides(
             straight
           </p>
           <div className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/15 px-4 py-3">
-            <span aria-hidden className="text-2xl">
-              {habit.emoji}
-            </span>
+            <HabitIconSvg icon={habit.icon} size={26} color="currentColor" />
             <span className="text-base font-bold">{habit.name}</span>
           </div>
           <Kicker>
@@ -235,13 +234,7 @@ export function buildSlides(
         <div>
           <Eyebrow>Your number one</Eyebrow>
           <div className="mt-4 flex items-center gap-4">
-            <span
-              aria-hidden
-              className="grid h-16 w-16 shrink-0 place-items-center rounded-3xl text-3xl"
-              style={{ background: topAccent.hex }}
-            >
-              {top.habit.emoji}
-            </span>
+            <HabitTile icon={top.habit.icon} accent={top.habit.accent} size={64} glow />
             <div className="min-w-0">
               <p className="display-md" style={{ color: topAccent.hex }}>
                 {top.habit.name}
@@ -261,9 +254,7 @@ export function buildSlides(
                     <span className="w-5 shrink-0 text-sm font-bold tabular-nums opacity-35">
                       {i + 2}
                     </span>
-                    <span aria-hidden className="text-lg">
-                      {t.habit.emoji}
-                    </span>
+                    <HabitIconSvg icon={t.habit.icon} size={20} color={a.hex} />
                     <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold">
                       {t.habit.name}
                     </span>

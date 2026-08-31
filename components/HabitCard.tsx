@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { Check, ICON_WEIGHT } from "./icons";
+import { Check, Fire, ICON_WEIGHT } from "./icons";
+import { HabitTile } from "./HabitGlyph";
 import { burstConfetti, haptic } from "@/lib/confetti";
 import { accentOf } from "@/lib/palette";
 import { describeCadence, periodNoun, streakNoun } from "@/lib/habits";
@@ -73,16 +74,7 @@ export function HabitCard({ habit, onOpen, index = 0 }: HabitCardProps) {
             aria-label={`Open ${habit.name}`}
           >
             <span className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl sm:h-12 sm:w-12 sm:text-2xl"
-                style={{
-                  background: accent.hex,
-                  boxShadow: `0 8px 24px -12px ${accent.hex}`,
-                }}
-              >
-                {habit.emoji}
-              </span>
+              <HabitTile icon={habit.icon} accent={habit.accent} size={46} glow />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[1.0625rem] font-semibold leading-tight text-bone sm:text-lg">
                   {habit.name}
@@ -90,8 +82,12 @@ export function HabitCard({ habit, onOpen, index = 0 }: HabitCardProps) {
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.8125rem] text-bone/55">
                   <span>{describeCadence(habit)}</span>
                   {streak > 0 && (
-                    <span className="font-semibold" style={{ color: accent.hex }}>
-                      &#128293; {streakNoun(habit, streak)}
+                    <span
+                      className="inline-flex items-center gap-1 font-semibold"
+                      style={{ color: accent.hex }}
+                    >
+                      <Fire size={13} weight="fill" aria-hidden />
+                      {streakNoun(habit, streak)}
                     </span>
                   )}
                 </span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { habitIcon, ICON_GRID } from "./habitIcons";
 import { accentOf } from "./palette";
 import type { WrappedStats } from "./wrapped";
 
@@ -36,6 +37,32 @@ function roundRect(
 }
 
 /** Draws the 9:16 poster and hands back a PNG blob. */
+
+/**
+ * Draws a habit glyph into the canvas from the same path data the DOM uses,
+ * so the share card and the app cannot drift apart.
+ *
+ * Path2D takes SVG path syntax directly; the transform maps Phosphor's 256
+ * grid onto a `size`-wide box centred on (cx, cy).
+ */
+function drawHabitIcon(
+  ctx: CanvasRenderingContext2D,
+  icon: string,
+  cx: number,
+  cy: number,
+  size: number,
+  color: string,
+) {
+  const { paths } = habitIcon(icon);
+  const scale = size / ICON_GRID;
+  ctx.save();
+  ctx.translate(cx - size / 2, cy - size / 2);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = color;
+  for (const d of paths) ctx.fill(new Path2D(d));
+  ctx.restore();
+}
+
 export async function renderShareCard(
   stats: WrappedStats,
   name: string,
@@ -182,10 +209,7 @@ export async function renderShareCard(
     roundRect(ctx, PAD, rowY, 68, 68, 20);
     ctx.fill();
 
-    ctx.font = `400 38px ${sans}`;
-    ctx.textAlign = "center";
-    ctx.fillText(t.habit.emoji, PAD + 34, rowY + 48);
-    ctx.textAlign = "left";
+    drawHabitIcon(ctx, t.habit.icon, PAD + 34, rowY + 34, 36, a.ink);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = `600 38px ${sans}`;

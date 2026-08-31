@@ -2,12 +2,13 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { todayKey } from "./date";
+import { iconKeyFromEmoji, type HabitIconKey } from "./habitIcons";
 import { type Cell, type CompletionLog, migrateLegacyLog } from "./log";
 import { nextAccent } from "./palette";
 import { isLive, type AppState, type Habit, type HabitDraft, type Prefs, type SyncState } from "./types";
 
 const STORAGE_KEY = "streakwrapped.v1";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /** Tombstones are dropped once no device could still be unaware of them. */
 const TOMBSTONE_TTL_MS = 90 * 86_400_000;
@@ -45,10 +46,19 @@ function newId(): string {
 
 function reviveHabit(raw: unknown, stamp: number): Habit | null {
   if (!raw || typeof raw !== "object") return null;
-  const h = raw as Partial<Habit>;
+  const h = raw as Partial<Habit> & { emoji?: unknown };
   if (typeof h.id !== "string" || typeof h.name !== "string") return null;
+
+  // v3 replaced the literal emoji with a key into the curated icon set.
+  const icon: HabitIconKey =
+    typeof h.icon === "string" && h.icon
+      ? (h.icon as HabitIconKey)
+      : iconKeyFromEmoji(h.emoji);
+  const { emoji: _dropped, ...rest } = h;
+
   return {
-    ...(h as Habit),
+    ...(rest as Habit),
+    icon,
     // v1 habits predate sync and carry no timestamp.
     updatedAt: typeof h.updatedAt === "number" ? h.updatedAt : (h.createdAt ?? stamp),
   };

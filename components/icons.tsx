@@ -18,6 +18,7 @@ import { CaretRight } from "@phosphor-icons/react/dist/ssr/CaretRight";
 import { Check } from "@phosphor-icons/react/dist/ssr/Check";
 import { DotsThreeVertical } from "@phosphor-icons/react/dist/ssr/DotsThreeVertical";
 import { Export } from "@phosphor-icons/react/dist/ssr/Export";
+import { Fire } from "@phosphor-icons/react/dist/ssr/Fire";
 import { Plus } from "@phosphor-icons/react/dist/ssr/Plus";
 import { PlusSquare } from "@phosphor-icons/react/dist/ssr/PlusSquare";
 import { X } from "@phosphor-icons/react/dist/ssr/X";
@@ -29,6 +30,7 @@ export {
   Check,
   DotsThreeVertical,
   Export,
+  Fire,
   Plus,
   PlusSquare,
   X,

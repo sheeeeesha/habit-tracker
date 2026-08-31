@@ -8,7 +8,7 @@ function habit(id: string, updatedAt: number, extra: Partial<Habit> = {}): Habit
   return {
     id,
     name: `Habit ${id}`,
-    emoji: "🔥",
+    icon: "fire",
     accent: "hyperpink",
     cadence: "daily",
     target: 1,

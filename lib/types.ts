@@ -1,4 +1,5 @@
 import type { Cadence } from "./date";
+import type { HabitIconKey } from "./habitIcons";
 import type { CompletionLog } from "./log";
 import type { AccentKey } from "./palette";
 
@@ -9,7 +10,8 @@ export type TimeOfDay = "anytime" | "morning" | "afternoon" | "evening";
 export interface Habit {
   id: string;
   name: string;
-  emoji: string;
+  /** Key into the curated Phosphor set — never a literal emoji. */
+  icon: HabitIconKey;
   accent: AccentKey;
   /** Which calendar bucket the target applies to. */
   cadence: Cadence;
