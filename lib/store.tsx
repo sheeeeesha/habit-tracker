@@ -2,17 +2,27 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { todayKey } from "./date";
+import { type Cell, type CompletionLog, migrateLegacyLog } from "./log";
 import { nextAccent } from "./palette";
-import type { AppState, Habit, HabitDraft, Prefs } from "./types";
+import { isLive, type AppState, type Habit, type HabitDraft, type Prefs, type SyncState } from "./types";
 
 const STORAGE_KEY = "streakwrapped.v1";
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+/** Tombstones are dropped once no device could still be unaware of them. */
+const TOMBSTONE_TTL_MS = 90 * 86_400_000;
 
 const DEFAULT_PREFS: Prefs = {
   installDismissedUntil: 0,
   installed: false,
   installRequested: false,
   reduceMotion: false,
+};
+
+const DEFAULT_SYNC: SyncState = {
+  userId: null,
+  lastSyncedAt: null,
+  cursor: null,
 };
 
 function emptyState(): AppState {
@@ -22,6 +32,7 @@ function emptyState(): AppState {
     habits: [],
     log: {},
     prefs: { ...DEFAULT_PREFS },
+    sync: { ...DEFAULT_SYNC },
   };
 }
 
@@ -32,23 +43,53 @@ function newId(): string {
   return `h_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function reviveHabit(raw: unknown, stamp: number): Habit | null {
+  if (!raw || typeof raw !== "object") return null;
+  const h = raw as Partial<Habit>;
+  if (typeof h.id !== "string" || typeof h.name !== "string") return null;
+  return {
+    ...(h as Habit),
+    // v1 habits predate sync and carry no timestamp.
+    updatedAt: typeof h.updatedAt === "number" ? h.updatedAt : (h.createdAt ?? stamp),
+  };
+}
+
+interface Revived {
+  state: AppState;
+  /** True when the payload was an older schema and had to be upgraded. */
+  migrated: boolean;
+}
+
 /** Tolerant parse — a half-written or older payload degrades to defaults. */
-function reviveState(raw: string | null): AppState {
-  if (!raw) return emptyState();
+function reviveState(raw: string | null): Revived {
+  if (!raw) return { state: emptyState(), migrated: false };
   try {
-    const parsed = JSON.parse(raw) as Partial<AppState>;
-    const base = emptyState();
-    return {
+    const parsed = JSON.parse(raw) as Partial<AppState> | null;
+    if (!parsed || typeof parsed !== "object") {
+      return { state: emptyState(), migrated: false };
+    }
+
+    // v1 stored a bare count per day and had no sync metadata. Stamping the
+    // migration with the moment it happened keeps existing history "older"
+    // than anything written after it.
+    const stamp = Date.now();
+    const migrated = parsed.version !== SCHEMA_VERSION;
+
+    const state: AppState = {
       version: SCHEMA_VERSION,
-      name: typeof parsed.name === "string" ? parsed.name : base.name,
+      name: typeof parsed.name === "string" ? parsed.name : "",
       habits: Array.isArray(parsed.habits)
-        ? parsed.habits.filter((h): h is Habit => !!h && typeof h.id === "string")
+        ? parsed.habits
+            .map((h) => reviveHabit(h, stamp))
+            .filter((h): h is Habit => h !== null)
         : [],
-      log: parsed.log && typeof parsed.log === "object" ? parsed.log : {},
+      log: migrateLegacyLog(parsed.log, stamp),
       prefs: { ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) },
+      sync: { ...DEFAULT_SYNC, ...(parsed.sync ?? {}) },
     };
+    return { state, migrated };
   } catch {
-    return emptyState();
+    return { state: emptyState(), migrated: false };
   }
 }
 
@@ -102,10 +143,30 @@ function adopt(state: AppState, { persist }: { persist: boolean }) {
   emit();
 }
 
+/** Drops tombstones old enough that every device has certainly synced them. */
+function purgeTombstones(state: AppState): AppState {
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  const stale = state.habits.filter((h) => h.deletedAt && h.deletedAt < cutoff);
+  if (!stale.length) return state;
+  const log = { ...state.log };
+  for (const h of stale) delete log[h.id];
+  return {
+    ...state,
+    habits: state.habits.filter((h) => !stale.includes(h)),
+    log,
+  };
+}
+
 function ensureLoaded() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
-  adopt(reviveState(window.localStorage.getItem(STORAGE_KEY)), { persist: false });
+  const { state, migrated } = reviveState(window.localStorage.getItem(STORAGE_KEY));
+  const purged = purgeTombstones(state);
+  // An upgraded payload must be written back straight away. Otherwise the
+  // migration re-runs on every load and re-stamps every cell with a fresh
+  // timestamp, which would make local data permanently look newer than the
+  // server and quietly win every sync conflict.
+  adopt(purged, { persist: migrated || purged !== state });
 }
 
 function subscribe(onChange: () => void): () => void {
@@ -118,7 +179,7 @@ function subscribe(onChange: () => void): () => void {
       // it straight back to storage.
       if (e.key !== STORAGE_KEY) return;
       loaded = true;
-      adopt(reviveState(e.newValue), { persist: false });
+      adopt(reviveState(e.newValue).state, { persist: false });
     });
   }
 
@@ -139,10 +200,25 @@ function update(fn: (state: AppState) => AppState) {
   adopt(fn(snapshot.state), { persist: true });
 }
 
+/** Read-only access for non-React callers such as the sync engine. */
+export function readState(): AppState {
+  return snapshot.state;
+}
+
+export function isHydrated(): boolean {
+  return snapshot.hydrated;
+}
+
+/** Lets the sync engine subscribe without going through React. */
+export function subscribeToStore(onChange: () => void): () => void {
+  return subscribe(onChange);
+}
+
 export interface StoreValue {
   state: AppState;
   /** False during the first paint, before localStorage has been read. */
   hydrated: boolean;
+  /** Excludes deleted tombstones. */
   habits: Habit[];
   addHabit: (draft: HabitDraft) => Habit;
   updateHabit: (id: string, patch: Partial<Habit>) => void;
@@ -158,7 +234,8 @@ export interface StoreValue {
 }
 
 export function addHabit(draft: HabitDraft): Habit {
-  const habit: Habit = { ...draft, id: newId(), createdAt: Date.now() };
+  const now = Date.now();
+  const habit: Habit = { ...draft, id: newId(), createdAt: now, updatedAt: now };
   update((s) => ({ ...s, habits: [...s.habits, habit] }));
   return habit;
 }
@@ -166,15 +243,27 @@ export function addHabit(draft: HabitDraft): Habit {
 export function updateHabit(id: string, patch: Partial<Habit>) {
   update((s) => ({
     ...s,
-    habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
+    habits: s.habits.map((h) =>
+      h.id === id ? { ...h, ...patch, updatedAt: Date.now() } : h,
+    ),
   }));
 }
 
+/**
+ * Soft delete. The row survives as a tombstone so the deletion reaches other
+ * devices; the log is cleared immediately since nothing can read it again.
+ */
 export function deleteHabit(id: string) {
   update((s) => {
     const log = { ...s.log };
     delete log[id];
-    return { ...s, habits: s.habits.filter((h) => h.id !== id), log };
+    return {
+      ...s,
+      habits: s.habits.map((h) =>
+        h.id === id ? { ...h, deletedAt: Date.now(), updatedAt: Date.now() } : h,
+      ),
+      log,
+    };
   });
 }
 
@@ -182,23 +271,26 @@ export function setArchived(id: string, archived: boolean) {
   update((s) => ({
     ...s,
     habits: s.habits.map((h) =>
-      h.id === id ? { ...h, archivedAt: archived ? Date.now() : undefined } : h,
+      h.id === id
+        ? { ...h, archivedAt: archived ? Date.now() : undefined, updatedAt: Date.now() }
+        : h,
     ),
   }));
 }
 
-function writeCount(habitId: string, key: string, next: number) {
+function writeCount(habitId: string, day: string, next: number) {
   update((s) => {
-    const forHabit = { ...(s.log[habitId] ?? {}) };
-    if (next <= 0) delete forHabit[key];
-    else forHabit[key] = next;
+    const forHabit: Record<string, Cell> = { ...(s.log[habitId] ?? {}) };
+    // A zero is stored as absence, but the write still needs a timestamp for
+    // sync — so a cleared day becomes {n: 0} rather than vanishing outright.
+    forHabit[day] = { n: Math.max(0, next), t: Date.now() };
     return { ...s, log: { ...s.log, [habitId]: forHabit } };
   });
 }
 
 export function bumpCheckIn(habitId: string, delta: number, key?: string) {
   const k = key ?? todayKey();
-  const current = snapshot.state.log[habitId]?.[k] ?? 0;
+  const current = snapshot.state.log[habitId]?.[k]?.n ?? 0;
   writeCount(habitId, k, Math.max(0, current + delta));
 }
 
@@ -214,14 +306,23 @@ export function setPrefs(patch: Partial<Prefs>) {
   update((s) => ({ ...s, prefs: { ...s.prefs, ...patch } }));
 }
 
+export function setSync(patch: Partial<SyncState>) {
+  update((s) => ({ ...s, sync: { ...s.sync, ...patch } }));
+}
+
 export function resetAll() {
   update(() => emptyState());
 }
 
+/** Applies a merged result from the sync engine. */
+export function applyMerged(habits: Habit[], log: CompletionLog, sync: Partial<SyncState>) {
+  update((s) => ({ ...s, habits, log, sync: { ...s.sync, ...sync } }));
+}
+
 /** Replaces everything — used by the backup importer. */
-export function replaceAll(next: AppState) {
+export function replaceAll(next: unknown) {
   loaded = true;
-  adopt(reviveState(JSON.stringify(next)), { persist: true });
+  adopt(reviveState(JSON.stringify(next)).state, { persist: true });
 }
 
 export function useStore(): StoreValue {
@@ -231,16 +332,19 @@ export function useStore(): StoreValue {
     getServerSnapshot,
   );
 
+  // Tombstones exist for sync only; nothing in the UI should ever see them.
+  const habits = useMemo(() => state.habits.filter(isLive), [state.habits]);
+
   const suggestAccent = useCallback(
-    () => nextAccent(state.habits.length),
-    [state.habits.length],
+    () => nextAccent(habits.length),
+    [habits.length],
   );
 
   return useMemo(
     () => ({
       state,
       hydrated,
-      habits: state.habits,
+      habits,
       addHabit,
       updateHabit,
       deleteHabit,
@@ -252,6 +356,6 @@ export function useStore(): StoreValue {
       resetAll,
       suggestAccent,
     }),
-    [state, hydrated, suggestAccent],
+    [state, hydrated, habits, suggestAccent],
   );
 }

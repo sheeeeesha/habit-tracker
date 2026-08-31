@@ -7,6 +7,7 @@ import { useInstall } from "@/lib/useInstall";
 import { accentOf } from "@/lib/palette";
 import { describeCadence } from "@/lib/habits";
 import { formatBytes, useStorageStatus } from "@/lib/persistence";
+import { SyncSection } from "./SyncSection";
 
 interface MenuSheetProps {
   open: boolean;
@@ -65,14 +66,14 @@ function Toggle({
 }
 
 export function MenuSheet({ open, onClose }: MenuSheetProps) {
-  const { state, setName, setPrefs, setArchived, resetAll } = useStore();
+  const { state, habits, setName, setPrefs, setArchived, resetAll } = useStore();
   const install = useInstall();
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [importNote, setImportNote] = useState("");
   const { status: storage, request: requestStorage } = useStorageStatus();
 
-  const archived = state.habits.filter((h) => h.archivedAt);
+  const archived = habits.filter((h) => h.archivedAt);
 
   function exportData() {
     const blob = new Blob([JSON.stringify(state, null, 2)], {
@@ -164,6 +165,8 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
             }
           />
         </div>
+
+        <SyncSection />
 
         {archived.length > 0 && (
           <div>

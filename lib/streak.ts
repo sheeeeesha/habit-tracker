@@ -7,7 +7,10 @@ import {
   shiftPeriod,
   today,
 } from "./date";
-import type { CompletionLog, Habit } from "./types";
+import { countOn } from "./log";
+import { isActive, type CompletionLog, type Habit } from "./types";
+
+export { countOn };
 
 /** Hard stop so a corrupt startDate can never spin the loops forever. */
 const MAX_PERIODS = 4000;
@@ -22,10 +25,6 @@ export function isScheduledOn(habit: Habit, d: Date): boolean {
 /** First period that counts toward this habit's history. */
 export function firstPeriod(habit: Habit): Date {
   return periodStart(parseKey(habit.startDate), habit.cadence);
-}
-
-export function countOn(log: CompletionLog, habitId: string, key: string): number {
-  return log[habitId]?.[key] ?? 0;
 }
 
 /** Check-ins recorded inside one period, ignoring anything before the start date. */
@@ -138,7 +137,7 @@ export function completionRate(habit: Habit, log: CompletionLog): number {
 
 /** A habit is "due" when its current period is scheduled and not yet finished. */
 export function isDueNow(habit: Habit, log: CompletionLog): boolean {
-  if (habit.archivedAt) return false;
+  if (!isActive(habit)) return false;
   const now = today();
   if (habit.startDate > dateKey(now)) return false;
   if (!isScheduledOn(habit, now)) return false;
@@ -147,7 +146,7 @@ export function isDueNow(habit: Habit, log: CompletionLog): boolean {
 
 /** Scheduled today at all — false on a weekday-limited habit's rest day. */
 export function isOnDutyToday(habit: Habit): boolean {
-  if (habit.archivedAt) return false;
+  if (!isActive(habit)) return false;
   const now = today();
   if (habit.startDate > dateKey(now)) return false;
   return isScheduledOn(habit, now);
@@ -188,7 +187,7 @@ export function dayStatuses(
 
 /** Roll-up used by the home hero. */
 export function todaySummary(habits: Habit[], log: CompletionLog) {
-  const active = habits.filter((h) => !h.archivedAt && isOnDutyToday(h));
+  const active = habits.filter((h) => isActive(h) && isOnDutyToday(h));
   const done = active.filter((h) => periodProgress(h, log).complete).length;
 
   // The longest run currently alive, plus which habit owns it — the unit is
@@ -196,7 +195,7 @@ export function todaySummary(habits: Habit[], log: CompletionLog) {
   let topStreak = 0;
   let topHabit: Habit | null = null;
   for (const h of habits) {
-    if (h.archivedAt) continue;
+    if (!isActive(h)) continue;
     const s = currentStreak(h, log);
     if (s > topStreak) {
       topStreak = s;

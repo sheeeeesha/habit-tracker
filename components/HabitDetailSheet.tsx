@@ -10,6 +10,7 @@ import {
   startOfMonth,
   today,
 } from "@/lib/date";
+import { totalFor } from "@/lib/log";
 import { accentOf } from "@/lib/palette";
 import { cadenceNoun, describeCadence, streakNoun, TIME_OF_DAY_LABEL } from "@/lib/habits";
 import {
@@ -64,7 +65,7 @@ export function HabitDetailSheet({ habit, open, onClose, onEdit }: HabitDetailSh
   const stats = useMemo(() => {
     if (!habit) return null;
     const log = state.log;
-    const total = Object.values(log[habit.id] ?? {}).reduce((a, b) => a + b, 0);
+    const total = totalFor(log, habit.id);
     return {
       current: currentStreak(habit, log),
       best: bestStreak(habit, log),

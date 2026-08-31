@@ -1,7 +1,8 @@
 import type { Cadence } from "./date";
+import type { CompletionLog } from "./log";
 import type { AccentKey } from "./palette";
 
-export type { Cadence };
+export type { Cadence, CompletionLog };
 
 export type TimeOfDay = "anytime" | "morning" | "afternoon" | "evening";
 
@@ -23,11 +24,16 @@ export interface Habit {
   /** Local date key; periods before this never count toward streaks. */
   startDate: string;
   createdAt: number;
+  /** Epoch ms of the last edit — the sort key for last-write-wins sync. */
+  updatedAt: number;
+  /** User archived it: hidden from Today, kept in Settings, still syncs. */
   archivedAt?: number;
+  /**
+   * Tombstone. The row is kept so the deletion can propagate to other
+   * devices, and is purged locally once every device has certainly seen it.
+   */
+  deletedAt?: number;
 }
-
-/** habitId -> local date key -> number of check-ins that day. */
-export type CompletionLog = Record<string, Record<string, number>>;
 
 export interface Prefs {
   /** Epoch ms; the install CTA stays hidden until this moment. */
@@ -39,12 +45,32 @@ export interface Prefs {
   reduceMotion: boolean;
 }
 
+export interface SyncState {
+  /** Supabase user id this local database belongs to, if signed in. */
+  userId: string | null;
+  /** Epoch ms of the last successful pull+push round trip. */
+  lastSyncedAt: number | null;
+  /** Server-side timestamp watermark; rows newer than this need pulling. */
+  cursor: string | null;
+}
+
 export interface AppState {
   version: number;
   name: string;
   habits: Habit[];
   log: CompletionLog;
   prefs: Prefs;
+  sync: SyncState;
 }
 
-export type HabitDraft = Omit<Habit, "id" | "createdAt">;
+export type HabitDraft = Omit<Habit, "id" | "createdAt" | "updatedAt">;
+
+/** Exists at all — excludes deleted tombstones. */
+export function isLive(habit: Habit): boolean {
+  return !habit.deletedAt;
+}
+
+/** Shown on the Today screen — excludes deleted and archived. */
+export function isActive(habit: Habit): boolean {
+  return !habit.deletedAt && !habit.archivedAt;
+}

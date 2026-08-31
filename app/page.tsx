@@ -15,7 +15,7 @@ import { accentOf } from "@/lib/palette";
 import { isOnDutyToday, periodProgress, todaySummary } from "@/lib/streak";
 import { useStore } from "@/lib/store";
 import { clearUrlFlag, useUrlFlag } from "@/lib/useUrlFlag";
-import type { Habit, HabitDraft } from "@/lib/types";
+import { isActive, type Habit, type HabitDraft } from "@/lib/types";
 
 type Filter = "today" | "all" | "daily" | "weekly" | "monthly";
 
@@ -36,7 +36,7 @@ function greeting(): string {
 }
 
 export default function HomePage() {
-  const { state, hydrated, addHabit, suggestAccent } = useStore();
+  const { state, habits, hydrated, suggestAccent } = useStore();
   const [filter, setFilter] = useState<Filter>("today");
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState<Habit | null>(null);
@@ -50,14 +50,11 @@ export default function HomePage() {
   const [deepLinkUsed, setDeepLinkUsed] = useState(false);
   const composerVisible = composerOpen || (deepLinkNew && !deepLinkUsed);
 
-  const active = useMemo(
-    () => state.habits.filter((h) => !h.archivedAt),
-    [state.habits],
-  );
+  const active = useMemo(() => habits.filter(isActive), [habits]);
 
   const summary = useMemo(
-    () => todaySummary(state.habits, state.log),
-    [state.habits, state.log],
+    () => todaySummary(habits, state.log),
+    [habits, state.log],
   );
 
   const visible = useMemo(() => {

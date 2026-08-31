@@ -4,7 +4,8 @@ A habit tracker with two jobs: make checking something off feel good, and once a
 year's worth of check-ins has piled up, replay it as a Spotify-Wrapped-style
 story.
 
-Everything lives in the browser — no account, no server, no network calls.
+Works with no account and no network. Sign in and the same history syncs
+across devices without giving up any of that.
 
 ---
 
@@ -64,7 +65,8 @@ Then open <http://localhost:3000>.
 npm run build && npm start
 ```
 
-`npm run lint` runs ESLint. TypeScript is checked as part of `build`.
+`npm test` runs the sync-merge tests, `npm run lint` runs ESLint, and
+TypeScript is checked as part of `build`.
 
 ### Testing the install prompt
 
@@ -105,6 +107,11 @@ lib/
   store.tsx            useSyncExternalStore over localStorage
   shareCard.ts         canvas poster + Web Share
   useInstall.ts        beforeinstallprompt, standalone + platform detection
+  persistence.ts       navigator.storage.persist + status reporting
+  sync/                merge (pure, tested), engine, useSync hook
+  supabase/client.ts   configured only when the env vars are present
+supabase/
+  migrations/          schema, RLS policies, conditional-upsert push RPCs
 public/
   manifest.webmanifest, sw.js, offline.html, icons/
 ```
@@ -131,19 +138,22 @@ One `localStorage` key, `streakwrapped.v1`:
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "name": "…",
   "habits": [{ "id", "name", "emoji", "accent", "cadence", "target",
-               "weekdays", "timeOfDay", "startDate", "createdAt" }],
-  "log": { "<habitId>": { "2026-08-31": 3 } },   // date -> check-ins that day
+               "weekdays", "timeOfDay", "startDate", "createdAt",
+               "updatedAt", "archivedAt?", "deletedAt?" }],
+  // date -> { n: check-ins, t: when it was written }
+  "log": { "<habitId>": { "2026-08-31": { "n": 3, "t": 1788160425512 } } },
   "prefs": { "installDismissedUntil", "installed", "installRequested",
-             "reduceMotion" }
+             "reduceMotion" },
+  "sync":  { "userId", "lastSyncedAt", "cursor" }
 }
 ```
 
 Settings ▸ *Your data* exports this as JSON and imports it back.
 
-### Durability
+### Durability on one device
 
 On load the app calls `navigator.storage.persist()`. An origin granted
 persistent storage is skipped by the browser's eviction pass, which matters
@@ -153,10 +163,84 @@ so the install CTA is doing real work here, not just cosmetics.
 
 Chromium and Safari grant persistence silently from engagement heuristics and
 often refuse a cold request, so Settings ▸ *Your data* reports the actual
-status — *Persistent* or *Best effort* — rather than pretending. Clearing site
-data still wipes everything either way; export a backup if it matters.
+status — *Persistent* or *Best effort* — rather than pretending.
 
-This is still single-device. See **Where this goes next**.
+Settings ▸ *Your data* also exports the whole database as JSON and imports it
+back.
+
+---
+
+## Sync
+
+Sync is **optional and local-first**. With no Supabase project configured the
+app behaves exactly as described above — local only, no account, no network.
+Attach one and the same local database gains a durable backup and cross-device
+history.
+
+The local store stays the source of truth. A check-in writes to localStorage
+and renders immediately; syncing happens afterwards, in the background, and a
+failure never blocks the tap. Being offline is a normal state, not an error.
+
+### Setting it up
+
+1. Create a project at [supabase.com](https://supabase.com) (the free tier is
+   plenty — this schema is tiny).
+2. Run [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
+   in the SQL editor, or `supabase db push` with the CLI.
+3. Copy `.env.example` to `.env.local` and fill in the project URL and anon key
+   from **Project Settings ▸ Data API**.
+4. Under **Authentication ▸ URL Configuration**, add your site URL to the
+   redirect allowlist so the magic link comes back to the right place.
+
+The anon key is meant to be public. Every table is behind row-level security,
+so it can only ever read and write the signed-in user's own rows — which the
+migration's tests exercise directly.
+
+Sign-in is a passwordless email link. Nothing else is collected.
+
+### How conflicts are resolved
+
+Last-write-wins, resolved **per habit row and per (habit, day) check-in cell**
+rather than over the document as a whole. Two phones that touched different
+days of the same habit both keep their edit; only a genuine same-cell collision
+has a loser.
+
+- **Ties go to the server.** Arbitrary, but it has to be consistent — if ties
+  went to the client, every sync would re-push rows the server already had and
+  the two sides would trade writes forever.
+- **`updated_at` is the client's clock** and decides conflicts. **`synced_at`
+  is the server's clock** and drives the incremental pull cursor. Mixing them
+  would let a device with a wrong clock either hide its own writes or win every
+  conflict. The pull cursor is deliberately rewound a few seconds each time, so
+  a row can be fetched twice — harmless, the merge treats it as a tie — rather
+  than missed once.
+- **Deletes are tombstones**, not row removal, so a deletion actually reaches
+  the other devices. They are purged locally after 90 days.
+- **The push is a conditional upsert** (`where excluded.updated_at > ...`)
+  inside a `security invoker` function, so a client that pulled a few seconds
+  ago cannot clobber a newer row written meanwhile. `user_id` is taken from the
+  session rather than the payload.
+- **Clearing a day is a value, not an absence.** It is stored as `count = 0`
+  with a timestamp, so undoing a check-in beats a stale one on the server
+  instead of silently reappearing.
+- **Signing into a different account wipes local data first**, so a shared
+  device never merges one person's habits into another's. Signing *out* keeps
+  them, since they are still usable offline.
+
+### What is tested
+
+`npm test` covers the merge: last-write-wins in both directions, ties,
+tombstone propagation, per-day independence, convergence (a second merge pushes
+nothing), cleared-day precedence, and the row conversions.
+
+The migration was applied to a real PostgreSQL 18 instance and its behaviour
+checked directly — stale writes rejected, newer writes accepted, check-ins for
+an unknown habit skipped rather than failing the batch, and RLS proven to hide
+one user's rows from another and to block writing into them.
+
+The one path not exercised end to end is the wire between the client and a live
+Supabase project (auth callback and PostgREST). Run through a sign-in once
+against your own project before trusting it with real history.
 
 ---
 
@@ -168,14 +252,3 @@ restore it on close, and close on Escape; the story is fully keyboard-driven
 tap zones alone; 44px minimum touch targets; pinch-zoom is left enabled. Motion
 respects `prefers-reduced-motion`, and Settings ▸ *Reduce motion* forces it on —
 which also turns off the story's auto-advance so slides only move on input.
-
----
-
-## Where this goes next
-
-The obvious gap is that history lives on one device. The intended shape is
-**local-first with sync**: keep the local store as the source of truth so
-check-ins stay instant and work offline, and reconcile against a hosted
-database when the user is signed in. That preserves the offline behaviour and
-adds durability plus cross-device history, rather than trading one for the
-other.

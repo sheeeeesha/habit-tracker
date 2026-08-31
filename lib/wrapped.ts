@@ -9,6 +9,7 @@ import {
   today,
   WEEKDAY_NAMES,
 } from "./date";
+import { entriesFor, totalFor } from "./log";
 import type { AccentKey } from "./palette";
 import {
   bestStreak,
@@ -17,7 +18,7 @@ import {
   isScheduledOn,
   periodProgress,
 } from "./streak";
-import type { CompletionLog, Habit } from "./types";
+import { isActive, type CompletionLog, type Habit } from "./types";
 
 export interface HabitTotal {
   habit: Habit;
@@ -148,17 +149,17 @@ function countCompletedPeriods(
 }
 
 export function buildWrapped(habits: Habit[], log: CompletionLog): WrappedStats {
-  const live = habits.filter((h) => !h.archivedAt);
+  const live = habits.filter(isActive);
   const now = today();
 
   // ---- Totals ------------------------------------------------------------
   const dayTotals = new Map<string, number>();
   let totalCheckIns = 0;
   for (const h of habits) {
-    for (const [key, count] of Object.entries(log[h.id] ?? {})) {
-      if (!count) continue;
-      totalCheckIns += count;
-      dayTotals.set(key, (dayTotals.get(key) ?? 0) + count);
+    for (const [key, c] of entriesFor(log, h.id)) {
+      if (!c.n) continue;
+      totalCheckIns += c.n;
+      dayTotals.set(key, (dayTotals.get(key) ?? 0) + c.n);
     }
   }
 
@@ -180,7 +181,7 @@ export function buildWrapped(habits: Habit[], log: CompletionLog): WrappedStats 
   const topHabits: HabitTotal[] = live
     .map((habit) => ({
       habit,
-      count: Object.values(log[habit.id] ?? {}).reduce((a, b) => a + b, 0),
+      count: totalFor(log, habit.id),
       completedPeriods: countCompletedPeriods(habit, log, now),
       rate: completionRate(habit, log),
       best: bestStreak(habit, log),
