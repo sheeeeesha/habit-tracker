@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { isSyncConfigured } from "@/lib/supabase/client";
 import { signInWithEmail, signOut } from "@/lib/sync/engine";
-import { useSync, type SyncStatus } from "@/lib/sync/useSync";
+import { useSyncView } from "./SyncProvider";
+import type { SyncStatus } from "@/lib/sync/useSync";
 
 const STATUS_COPY: Record<SyncStatus, { label: string; tone: string }> = {
   disabled: { label: "Off", tone: "bg-white/10 text-bone/50" },
@@ -24,7 +25,7 @@ function relativeTime(ms: number | null): string {
 }
 
 export function SyncSection() {
-  const { status, email, lastSyncedAt, error, sync } = useSync();
+  const { status, email, lastSyncedAt, error, sync } = useSyncView();
   const [address, setAddress] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);

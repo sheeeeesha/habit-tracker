@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Anton, Outfit } from "next/font/google";
 import Script from "next/script";
 import { AppRuntime } from "@/components/AppRuntime";
+import { SyncProvider } from "@/components/SyncProvider";
 import "./globals.css";
 
 const anton = Anton({
@@ -80,7 +81,7 @@ export default function RootLayout({
         <Script id="capture-install-prompt" strategy="beforeInteractive">
           {CAPTURE_INSTALL_PROMPT}
         </Script>
-        {children}
+        <SyncProvider>{children}</SyncProvider>
         <AppRuntime />
       </body>
     </html>

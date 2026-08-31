@@ -225,6 +225,26 @@ migration's tests exercise directly.
 
 Sign-in is a passwordless email link. Nothing else is collected.
 
+The auth flow is **implicit rather than PKCE**, deliberately. PKCE keeps a code
+verifier in the localStorage of the browser that *requested* the link, and mail
+apps routinely open links in their own in-app webview, which has separate
+storage — so the exchange fails and the link silently does nothing. The whole
+promise of a magic link is that it works wherever you tap it. The trade is that
+tokens ride in the URL fragment for an instant before supabase-js consumes them
+and cleans the URL; fragments are never sent to a server, and there is no
+server-side session here to protect.
+
+The sync runtime is mounted **above the page**, not inside Settings. Creating
+the Supabase client is what makes it look at the URL for a magic-link callback,
+and it also owns the auth subscription and the background sync triggers — so
+gating it behind a sheet meant sign-in links did nothing and check-ins only
+synced while that sheet happened to be open.
+
+**Deliverability is not optional.** A first message from a freshly verified
+domain lands in spam more often than not, because the domain has no sending
+reputation yet. Publish a DMARC record (`_dmarc`, starting at `p=none`) once
+SPF and DKIM verify.
+
 ### How conflicts are resolved
 
 Last-write-wins, resolved **per habit row and per (habit, day) check-in cell**

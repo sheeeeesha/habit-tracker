@@ -40,6 +40,31 @@ function statusFrom(outcome: SyncOutcome): SyncStatus {
   }
 }
 
+/**
+ * Supabase reports a failed callback by redirecting back with the reason in
+ * the URL — in the fragment for the implicit flow, in the query otherwise.
+ * Without this the app just renders "signed out" and the person is left
+ * guessing whether the link expired or they mistyped their address.
+ */
+function readAuthError(): string | null {
+  if (typeof window === "undefined") return null;
+  const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const fromQuery = new URLSearchParams(window.location.search);
+  const description =
+    fromHash.get("error_description") ?? fromQuery.get("error_description");
+  const code = fromHash.get("error") ?? fromQuery.get("error");
+  if (!description && !code) return null;
+
+  const message = (description ?? code ?? "").replace(/\+/g, " ");
+  if (/expired/i.test(message)) {
+    return "That sign-in link has expired. Request a new one.";
+  }
+  if (/already|used/i.test(message)) {
+    return "That link has already been used. Request a new one.";
+  }
+  return message || "Sign-in failed.";
+}
+
 export function useSync(): SyncView {
   const [status, setStatus] = useState<SyncStatus>(
     isSyncConfigured ? "signed-out" : "disabled",
@@ -65,17 +90,25 @@ export function useSync(): SyncView {
 
     let active = true;
 
+    // Read this before the session lookup, because supabase-js strips the
+    // callback parameters from the URL once it has processed them. The read is
+    // synchronous; the state write happens in the callback below.
+    const callbackError = readAuthError();
+
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
+      if (callbackError) setError(callbackError);
       setEmail(data.session?.user.email ?? null);
       if (data.session) void run();
-      else setStatus("signed-out");
+      else setStatus(callbackError ? "error" : "signed-out");
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setEmail(session?.user.email ?? null);
-      if (session) void run();
-      else {
+      if (session) {
+        setError(null);
+        void run();
+      } else {
         setStatus("signed-out");
         setLastSyncedAt(null);
       }
