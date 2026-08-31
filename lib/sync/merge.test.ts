@@ -309,8 +309,12 @@ describe("push validation", () => {
 });
 
 describe("sign-in input", () => {
-  it("accepts a six-digit code", () => {
+  it("accepts a code of any length Supabase can be configured to issue", () => {
+    // Supabase's OTP length is a project setting, 6 to 10 digits. Hardcoding
+    // six meant an 8-digit project could not sign in at all.
     assert.deepEqual(extractSignInToken("123456"), { token: "123456", type: "email" });
+    assert.deepEqual(extractSignInToken("12345678"), { token: "12345678", type: "email" });
+    assert.deepEqual(extractSignInToken("1234567890"), { token: "1234567890", type: "email" });
     assert.deepEqual(extractSignInToken("  123 456 "), { token: "123456", type: "email" });
   });
 
@@ -332,7 +336,7 @@ describe("sign-in input", () => {
   });
 
   it("rejects anything it cannot read a token out of", () => {
-    for (const bad of ["", "   ", "12345", "1234567", "hello", "https://example.com"]) {
+    for (const bad of ["", "   ", "12345", "12345678901", "hello", "https://example.com"]) {
       assert.equal(extractSignInToken(bad), null, `should reject ${JSON.stringify(bad)}`);
     }
   });

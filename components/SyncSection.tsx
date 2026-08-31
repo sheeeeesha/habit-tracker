@@ -116,13 +116,13 @@ export function SyncSection() {
         >
           <p className="text-[0.9375rem] font-semibold text-bone">Check your email</p>
           <p className="mt-0.5 text-xs leading-relaxed text-bone/55">
-            Sent to {sentTo}. Enter the six-digit code &mdash; or, if the email
-            only has a button, long-press it, copy the link and paste it here.
+            Sent to {sentTo}. Enter the code from the email. If there is no
+            code, long-press the button, copy the link and paste that instead.
             Either one signs in <em>this</em> copy of the app, which tapping the
             link cannot do once it is on your home screen.
           </p>
           <label htmlFor="sync-code" className="sr-only">
-            Six-digit code, or the sign-in link from the email
+            Code from the email, or the sign-in link
           </label>
           <input
             id="sync-code"
@@ -134,9 +134,9 @@ export function SyncSection() {
             enterKeyHint="go"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="000000 or paste the link"
+            placeholder="Code, or paste the link"
             className={`mt-3 w-full rounded-xl border border-white/12 bg-white/5 px-3.5 py-2.5 text-bone outline-none transition placeholder:text-bone/25 focus:border-white/30 ${
-              /^\d*$/.test(code) && code.length <= 6
+              /^\d*$/.test(code) && code.length <= 10
                 ? "text-center text-lg font-bold tracking-[0.4em] placeholder:tracking-normal placeholder:text-sm placeholder:font-normal"
                 : "text-xs"
             }`}

@@ -228,8 +228,9 @@ export function extractSignInToken(
   const trimmed = input.trim();
   if (!trimmed) return null;
 
+  // Supabase's OTP length is configurable (6 to 10), so do not assume six.
   const digits = trimmed.replace(/[\s-]/g, "");
-  if (/^\d{6}$/.test(digits)) return { token: digits, type: "email" };
+  if (/^\d{6,10}$/.test(digits)) return { token: digits, type: "email" };
 
   // Supabase's link is .../auth/v1/verify?token=<hash>&type=magiclink&...
   try {
@@ -269,17 +270,30 @@ export async function verifyEmailCode(
     return "Paste the six-digit code, or the whole sign-in link from the email.";
   }
 
-  const { error } =
-    parsed.type === "magiclink"
-      ? await supabase.auth.verifyOtp({ token_hash: parsed.token, type: "magiclink" })
-      : await supabase.auth.verifyOtp({ email, token: parsed.token, type: "email" });
+  const attempt = (type: "email" | "magiclink") =>
+    type === "magiclink"
+      ? supabase.auth.verifyOtp({ token_hash: parsed.token, type: "magiclink" })
+      : supabase.auth.verifyOtp({ email, token: parsed.token, type: "email" });
+
+  let { error } = await attempt(parsed.type);
+  if (error && parsed.type === "magiclink") {
+    // A link can be issued as a signup rather than a magiclink depending on
+    // whether the address had been seen before. A rejected attempt does not
+    // consume the token, so trying the other reading is free.
+    ({ error } = await supabase.auth.verifyOtp({ token_hash: parsed.token, type: "signup" }));
+  }
 
   if (!error) return null;
-  if (/expired/i.test(error.message)) {
-    return "That link or code has expired. Send a new one.";
-  }
-  if (/invalid|not found/i.test(error.message)) {
-    return "That did not work. Copy the whole link, and check it has not been used already.";
+
+  // Supabase answers "Email link is invalid or has expired" with error_code
+  // otp_expired for *any* rejected token — including one that never existed.
+  // Repeating "expired" back would be asserting something it never said, and
+  // sends people off re-sending mail when the real cause is usually that the
+  // token was already spent.
+  if (/expired|invalid|not found/i.test(error.message)) {
+    return parsed.type === "magiclink"
+      ? "That link did not work. Single-use links are often opened by email link scanners before you get to them — send a new one and use the code instead."
+      : "That code did not work. Check it against the newest email, then send a new one if needed.";
   }
   return error.message;
 }
