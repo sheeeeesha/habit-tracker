@@ -141,8 +141,22 @@ One `localStorage` key, `streakwrapped.v1`:
 }
 ```
 
-Settings ▸ *Your data* exports this as JSON and imports it back. Clearing site
-data wipes it, so that's the backup route.
+Settings ▸ *Your data* exports this as JSON and imports it back.
+
+### Durability
+
+On load the app calls `navigator.storage.persist()`. An origin granted
+persistent storage is skipped by the browser's eviction pass, which matters
+because WebKit otherwise clears script-writable storage after seven days of no
+interaction. **Home-screen-installed PWAs are exempt from that seven-day cap**,
+so the install CTA is doing real work here, not just cosmetics.
+
+Chromium and Safari grant persistence silently from engagement heuristics and
+often refuse a cold request, so Settings ▸ *Your data* reports the actual
+status — *Persistent* or *Best effort* — rather than pretending. Clearing site
+data still wipes everything either way; export a backup if it matters.
+
+This is still single-device. See **Where this goes next**.
 
 ---
 
@@ -154,3 +168,14 @@ restore it on close, and close on Escape; the story is fully keyboard-driven
 tap zones alone; 44px minimum touch targets; pinch-zoom is left enabled. Motion
 respects `prefers-reduced-motion`, and Settings ▸ *Reduce motion* forces it on —
 which also turns off the story's auto-advance so slides only move on input.
+
+---
+
+## Where this goes next
+
+The obvious gap is that history lives on one device. The intended shape is
+**local-first with sync**: keep the local store as the source of truth so
+check-ins stay instant and work offline, and reconcile against a hosted
+database when the user is signed in. That preserves the offline behaviour and
+adds durability plus cross-device history, rather than trading one for the
+other.

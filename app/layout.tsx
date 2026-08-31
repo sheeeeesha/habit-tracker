@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, Outfit } from "next/font/google";
 import Script from "next/script";
-import { ServiceWorker } from "@/components/ServiceWorker";
+import { AppRuntime } from "@/components/AppRuntime";
 import "./globals.css";
 
 const anton = Anton({
@@ -81,7 +81,7 @@ export default function RootLayout({
           {CAPTURE_INSTALL_PROMPT}
         </Script>
         {children}
-        <ServiceWorker />
+        <AppRuntime />
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ import { replaceAll, useStore } from "@/lib/store";
 import { useInstall } from "@/lib/useInstall";
 import { accentOf } from "@/lib/palette";
 import { describeCadence } from "@/lib/habits";
+import { formatBytes, useStorageStatus } from "@/lib/persistence";
 
 interface MenuSheetProps {
   open: boolean;
@@ -69,6 +70,7 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [importNote, setImportNote] = useState("");
+  const { status: storage, request: requestStorage } = useStorageStatus();
 
   const archived = state.habits.filter((h) => h.archivedAt);
 
@@ -210,6 +212,39 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
             Everything lives in this browser on this device — no account, no server.
             Clearing site data wipes it, so export a backup if it matters.
           </p>
+
+          {storage?.supported && (
+            <div className="mb-3 rounded-2xl border border-white/10 bg-white/4 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[0.8125rem] font-semibold text-bone">
+                  {storage.persisted ? "Protected from eviction" : "Evictable storage"}
+                </p>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[0.625rem] font-bold uppercase ${
+                    storage.persisted
+                      ? "bg-fresh/20 text-fresh"
+                      : "bg-highlight/20 text-highlight"
+                  }`}
+                >
+                  {storage.persisted ? "Persistent" : "Best effort"}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-bone/45">
+                {storage.persisted
+                  ? `Your browser has agreed not to clear this app's data automatically. Using ${formatBytes(storage.usageBytes)}.`
+                  : "Your browser may clear this data if the device runs low on space. Adding the app to your home screen and using it regularly usually earns persistent status."}
+              </p>
+              {!storage.persisted && (
+                <button
+                  type="button"
+                  onClick={() => void requestStorage()}
+                  className="mt-2.5 rounded-full border border-white/12 px-3.5 py-1.5 text-xs font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-95"
+                >
+                  Ask again
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
