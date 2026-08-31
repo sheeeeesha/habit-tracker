@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabase, isSyncConfigured } from "../supabase/client";
-import { applyMerged, readState, resetForAccount, setSync } from "../store";
+import { applyMerged, readState, resetForAccount, setName, setSync } from "../store";
 import {
   checkinToRow,
   habitFromRow,
@@ -143,6 +143,8 @@ async function runSync(): Promise<SyncOutcome> {
         .map((c) => checkinToRow(c.habitId, c.day, c.cell)),
     );
 
+    await syncDisplayName(session.user, before.name, before.nameUpdatedAt);
+
     applyMerged(merged.habits, merged.log, {
       ownerId: userId,
       userId,
@@ -164,6 +166,36 @@ async function runSync(): Promise<SyncOutcome> {
   }
 }
 
+/**
+ * The display name rides on the auth user's metadata rather than a table of
+ * its own. It is one string with no history, so a whole table, its policies
+ * and its own conflict resolution would be a lot of machinery for a field that
+ * changes about once. Same last-write-wins rule as everything else.
+ */
+async function syncDisplayName(
+  user: { user_metadata?: Record<string, unknown> },
+  localName: string,
+  localUpdatedAt: number,
+) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const meta = user.user_metadata ?? {};
+  const remoteName = typeof meta.display_name === "string" ? meta.display_name : "";
+  const remoteUpdatedAt =
+    typeof meta.display_name_updated_at === "number" ? meta.display_name_updated_at : 0;
+
+  if (remoteName === localName) return;
+
+  if (localUpdatedAt > remoteUpdatedAt) {
+    await supabase.auth.updateUser({
+      data: { display_name: localName, display_name_updated_at: localUpdatedAt },
+    });
+  } else if (remoteUpdatedAt > 0) {
+    setName(remoteName, remoteUpdatedAt);
+  }
+}
+
 /** Coalesces concurrent callers onto a single round trip. */
 export function syncNow(): Promise<SyncOutcome> {
   inFlight ??= runSync().finally(() => {
@@ -180,6 +212,36 @@ export async function signInWithEmail(email: string): Promise<string | null> {
     options: { emailRedirectTo: window.location.origin },
   });
   return error ? error.message : null;
+}
+
+/**
+ * Completes sign-in with the code from the email instead of the link.
+ *
+ * This is the path that works from an installed app. Tapping a link hands the
+ * session to whichever browser the OS opens, and an installed web app has its
+ * own storage — so the browser ends up signed in and the app the person is
+ * actually holding does not. Typing the code creates the session in whichever
+ * copy they typed it into, which is by definition the right one.
+ */
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return "Sync is not configured on this deployment.";
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token: code.replace(/\s+/g, ""),
+    type: "email",
+  });
+  if (!error) return null;
+  if (/expired/i.test(error.message)) {
+    return "That code has expired. Send a new one.";
+  }
+  if (/invalid/i.test(error.message)) {
+    return "That code is not right. Check the email and try again.";
+  }
+  return error.message;
 }
 
 export async function signOut(): Promise<void> {

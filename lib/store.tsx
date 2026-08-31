@@ -31,6 +31,7 @@ function emptyState(): AppState {
   return {
     version: SCHEMA_VERSION,
     name: "",
+    nameUpdatedAt: 0,
     habits: [],
     log: {},
     prefs: { ...DEFAULT_PREFS },
@@ -89,6 +90,8 @@ function reviveState(raw: string | null): Revived {
     const state: AppState = {
       version: SCHEMA_VERSION,
       name: typeof parsed.name === "string" ? parsed.name : "",
+      nameUpdatedAt:
+        typeof parsed.nameUpdatedAt === "number" ? parsed.nameUpdatedAt : 0,
       habits: Array.isArray(parsed.habits)
         ? parsed.habits
             .map((h) => reviveHabit(h, stamp))
@@ -309,8 +312,13 @@ export function setCheckIn(habitId: string, count: number, key?: string) {
   writeCount(habitId, key ?? todayKey(), Math.max(0, count));
 }
 
-export function setName(name: string) {
-  update((s) => ({ ...s, name }));
+/**
+ * `at` is supplied when adopting a name pulled from the account, so the
+ * incoming timestamp is preserved rather than the value looking freshly
+ * edited on this device and winning the next comparison.
+ */
+export function setName(name: string, at: number = Date.now()) {
+  update((s) => ({ ...s, name, nameUpdatedAt: at }));
 }
 
 export function setPrefs(patch: Partial<Prefs>) {

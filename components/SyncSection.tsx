@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { isSyncConfigured } from "@/lib/supabase/client";
-import { signInWithEmail, signOut } from "@/lib/sync/engine";
+import { signInWithEmail, signOut, verifyEmailCode } from "@/lib/sync/engine";
 import { useSyncView } from "./SyncProvider";
 import type { SyncStatus } from "@/lib/sync/useSync";
 
@@ -27,13 +27,15 @@ function relativeTime(ms: number | null): string {
 export function SyncSection() {
   const { status, email, lastSyncedAt, error, sync } = useSyncView();
   const [address, setAddress] = useState("");
+  const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const badge = STATUS_COPY[status];
 
-  async function sendLink(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = address.trim();
     if (!trimmed) return;
@@ -42,7 +44,21 @@ export function SyncSection() {
     const failure = await signInWithEmail(trimmed);
     setSending(false);
     if (failure) setProblem(failure);
-    else setNotice(`Check ${trimmed} for a sign-in link.`);
+    else {
+      setSentTo(trimmed);
+      setCode("");
+    }
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sentTo || code.trim().length < 6) return;
+    setVerifying(true);
+    setProblem(null);
+    const failure = await verifyEmailCode(sentTo, code);
+    setVerifying(false);
+    if (failure) setProblem(failure);
+    else setSentTo(null);
   }
 
   return (
@@ -93,20 +109,57 @@ export function SyncSection() {
             </button>
           </div>
         </div>
-      ) : notice ? (
-        <div className="rounded-2xl border border-fresh/25 bg-fresh/8 px-4 py-3.5">
-          <p className="text-[0.9375rem] font-semibold text-bone">Link sent</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-bone/55">{notice}</p>
+      ) : sentTo ? (
+        <form
+          onSubmit={submitCode}
+          className="rounded-2xl border border-fresh/25 bg-fresh/8 p-4"
+        >
+          <p className="text-[0.9375rem] font-semibold text-bone">Check your email</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-bone/55">
+            We sent a six-digit code to {sentTo}. Enter it here — typing the code
+            signs in <em>this</em> copy of the app, which tapping the link cannot
+            do once it&rsquo;s on your home screen.
+          </p>
+          <label htmlFor="sync-code" className="sr-only">
+            Six-digit code
+          </label>
+          <input
+            id="sync-code"
+            data-autofocus
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            enterKeyHint="go"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="000000"
+            className="mt-3 w-full rounded-xl border border-white/12 bg-white/5 px-3.5 py-2.5 text-center text-lg font-bold tracking-[0.4em] text-bone outline-none transition placeholder:tracking-[0.4em] placeholder:text-bone/25 focus:border-white/30"
+          />
+          {problem && (
+            <p className="mt-1.5 text-xs font-medium text-hyperpink">{problem}</p>
+          )}
+          <button
+            type="submit"
+            disabled={verifying || code.length < 6}
+            className="mt-2.5 w-full rounded-xl bg-fresh px-4 py-2.5 text-sm font-bold text-[#00160a] transition active:scale-[0.98] disabled:opacity-40"
+          >
+            {verifying ? "Signing in…" : "Sign in"}
+          </button>
           <button
             type="button"
-            onClick={() => setNotice(null)}
-            className="mt-2.5 rounded-full border border-white/12 px-3.5 py-1.5 text-xs font-semibold text-bone/60 transition hover:bg-white/10 hover:text-bone active:scale-95"
+            onClick={() => {
+              setSentTo(null);
+              setProblem(null);
+            }}
+            className="mt-2 w-full rounded-full px-3.5 py-1.5 text-xs font-semibold text-bone/50 transition hover:bg-white/10 hover:text-bone"
           >
             Use a different address
           </button>
-        </div>
+        </form>
       ) : (
-        <form onSubmit={sendLink} className="rounded-2xl border border-white/10 bg-white/4 p-4">
+        <form onSubmit={sendCode} className="rounded-2xl border border-white/10 bg-white/4 p-4">
           <p className="mb-3 text-xs leading-relaxed text-bone/45">
             Sign in to keep your streaks safe and pick them up on another device.
             Your habits stay on this device too, so the app still works offline.
@@ -134,7 +187,7 @@ export function SyncSection() {
             disabled={sending}
             className="mt-2.5 w-full rounded-xl bg-fresh px-4 py-2.5 text-sm font-bold text-[#00160a] transition active:scale-[0.98] disabled:opacity-60"
           >
-            {sending ? "Sending…" : "Email me a sign-in link"}
+            {sending ? "Sending…" : "Email me a sign-in code"}
           </button>
         </form>
       )}

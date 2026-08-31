@@ -65,6 +65,8 @@ export interface SyncState {
 export interface AppState {
   version: number;
   name: string;
+  /** Epoch ms of the last edit to `name`, for last-write-wins across devices. */
+  nameUpdatedAt: number;
   habits: Habit[];
   log: CompletionLog;
   prefs: Prefs;

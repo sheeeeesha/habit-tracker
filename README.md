@@ -223,7 +223,19 @@ The anon key is meant to be public. Every table is behind row-level security,
 so it can only ever read and write the signed-in user's own rows — which the
 migration's tests exercise directly.
 
-Sign-in is a passwordless email link. Nothing else is collected.
+Sign-in is a passwordless six-digit code. Nothing else is collected.
+
+**A code rather than a link, because of installed apps.** Tapping a link hands
+the session to whichever browser the OS decides to open, and an installed web
+app has its own storage — so the browser ends up signed in and the app the
+person is actually holding does not. Typing the code creates the session in
+whichever copy they typed it into, which is by definition the right one. The
+link still works if they use the browser.
+
+This needs `{{ .Token }}` in the **Magic Link** email template under
+**Authentication ▸ Email Templates**. The stock template only contains
+`{{ .ConfirmationURL }}`, so without that edit the email arrives with no code
+in it.
 
 The auth flow is **implicit rather than PKCE**, deliberately. PKCE keeps a code
 verifier in the localStorage of the browser that *requested* the link, and mail
@@ -270,6 +282,10 @@ has a loser.
 - **Clearing a day is a value, not an absence.** It is stored as `count = 0`
   with a timestamp, so undoing a check-in beats a stale one on the server
   instead of silently reappearing.
+- **The display name rides on the auth user's metadata**, not a table of its
+  own. It is one string that changes about once, so a table with its own
+  policies and conflict resolution would be a lot of machinery for it. Same
+  last-write-wins rule as everything else.
 - **Signing into a different account wipes local data first**, so a shared
   device never merges one person's habits into another's. That check reads
   `ownerId`, which records who the local database belongs to and survives
