@@ -232,10 +232,14 @@ person is actually holding does not. Typing the code creates the session in
 whichever copy they typed it into, which is by definition the right one. The
 link still works if they use the browser.
 
-This needs `{{ .Token }}` in the **Magic Link** email template under
-**Authentication ▸ Email Templates**. The stock template only contains
-`{{ .ConfirmationURL }}`, so without that edit the email arrives with no code
-in it.
+The same field also accepts the **sign-in link** pasted in. The link is in
+every email whatever the template says, and carries the same token as a query
+parameter — so this works with a stock Supabase project and no dashboard edit
+at all. Long-press the button in the email, copy the link, paste it in.
+
+For an actual six-digit code, add `{{ .Token }}` to the **Magic Link** template
+under **Authentication ▸ Email Templates**; the stock template contains only
+`{{ .ConfirmationURL }}`. That is a nicer experience, but it is optional.
 
 The auth flow is **implicit rather than PKCE**, deliberately. PKCE keeps a code
 verifier in the localStorage of the browser that *requested* the link, and mail

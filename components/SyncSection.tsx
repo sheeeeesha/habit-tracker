@@ -52,7 +52,7 @@ export function SyncSection() {
 
   async function submitCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!sentTo || code.trim().length < 6) return;
+    if (!sentTo || !code.trim()) return;
     setVerifying(true);
     setProblem(null);
     const failure = await verifyEmailCode(sentTo, code);
@@ -116,33 +116,37 @@ export function SyncSection() {
         >
           <p className="text-[0.9375rem] font-semibold text-bone">Check your email</p>
           <p className="mt-0.5 text-xs leading-relaxed text-bone/55">
-            We sent a six-digit code to {sentTo}. Enter it here — typing the code
-            signs in <em>this</em> copy of the app, which tapping the link cannot
-            do once it&rsquo;s on your home screen.
+            Sent to {sentTo}. Enter the six-digit code &mdash; or, if the email
+            only has a button, long-press it, copy the link and paste it here.
+            Either one signs in <em>this</em> copy of the app, which tapping the
+            link cannot do once it is on your home screen.
           </p>
           <label htmlFor="sync-code" className="sr-only">
-            Six-digit code
+            Six-digit code, or the sign-in link from the email
           </label>
           <input
             id="sync-code"
             data-autofocus
             type="text"
-            inputMode="numeric"
+            // Numeric for a code, but a pasted URL has to be allowed through.
+            inputMode={/^\d*$/.test(code) ? "numeric" : "text"}
             autoComplete="one-time-code"
-            pattern="[0-9]*"
-            maxLength={6}
             enterKeyHint="go"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="000000"
-            className="mt-3 w-full rounded-xl border border-white/12 bg-white/5 px-3.5 py-2.5 text-center text-lg font-bold tracking-[0.4em] text-bone outline-none transition placeholder:tracking-[0.4em] placeholder:text-bone/25 focus:border-white/30"
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="000000 or paste the link"
+            className={`mt-3 w-full rounded-xl border border-white/12 bg-white/5 px-3.5 py-2.5 text-bone outline-none transition placeholder:text-bone/25 focus:border-white/30 ${
+              /^\d*$/.test(code) && code.length <= 6
+                ? "text-center text-lg font-bold tracking-[0.4em] placeholder:tracking-normal placeholder:text-sm placeholder:font-normal"
+                : "text-xs"
+            }`}
           />
           {problem && (
             <p className="mt-1.5 text-xs font-medium text-hyperpink">{problem}</p>
           )}
           <button
             type="submit"
-            disabled={verifying || code.length < 6}
+            disabled={verifying || !code.trim()}
             className="mt-2.5 w-full rounded-xl bg-fresh px-4 py-2.5 text-sm font-bold text-[#00160a] transition active:scale-[0.98] disabled:opacity-40"
           >
             {verifying ? "Signing in…" : "Sign in"}

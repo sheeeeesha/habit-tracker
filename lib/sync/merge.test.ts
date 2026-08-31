@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { habitFromRow, habitToRow, isPushable, logFromRows, merge } from "./merge";
+import { extractSignInToken } from "./engine";
 import type { CompletionLog } from "../log";
 import type { Habit } from "../types";
 
@@ -303,6 +304,36 @@ describe("push validation", () => {
     ];
     for (const [why, h] of bad) {
       assert.equal(isPushable(h), false, `should reject: ${why}`);
+    }
+  });
+});
+
+describe("sign-in input", () => {
+  it("accepts a six-digit code", () => {
+    assert.deepEqual(extractSignInToken("123456"), { token: "123456", type: "email" });
+    assert.deepEqual(extractSignInToken("  123 456 "), { token: "123456", type: "email" });
+  });
+
+  it("accepts the magic link, which is present whatever the email template says", () => {
+    // The stock Supabase template contains only the link, so this is the path
+    // that works without anyone having edited the template.
+    const link =
+      "https://abc123.supabase.co/auth/v1/verify?token=pkce_9f8e7d&type=magiclink" +
+      "&redirect_to=https%3A%2F%2Fexample.com";
+    assert.deepEqual(extractSignInToken(link), {
+      token: "pkce_9f8e7d",
+      type: "magiclink",
+    });
+  });
+
+  it("reads a signup link as an email-type token", () => {
+    const link = "https://abc123.supabase.co/auth/v1/verify?token=abc&type=signup";
+    assert.deepEqual(extractSignInToken(link), { token: "abc", type: "email" });
+  });
+
+  it("rejects anything it cannot read a token out of", () => {
+    for (const bad of ["", "   ", "12345", "1234567", "hello", "https://example.com"]) {
+      assert.equal(extractSignInToken(bad), null, `should reject ${JSON.stringify(bad)}`);
     }
   });
 });

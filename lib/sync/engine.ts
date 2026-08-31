@@ -215,31 +215,71 @@ export async function signInWithEmail(email: string): Promise<string | null> {
 }
 
 /**
- * Completes sign-in with the code from the email instead of the link.
+ * What the app accepts out of a sign-in email.
+ *
+ * A six-digit code only exists if the email template asks for `{{ .Token }}`,
+ * which the stock template does not. The link is always present and carries
+ * the same token as a query parameter, so accepting a pasted link works
+ * whatever the template says — no dashboard edit required.
+ */
+export function extractSignInToken(
+  input: string,
+): { token: string; type: "email" | "magiclink" } | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const digits = trimmed.replace(/[\s-]/g, "");
+  if (/^\d{6}$/.test(digits)) return { token: digits, type: "email" };
+
+  // Supabase's link is .../auth/v1/verify?token=<hash>&type=magiclink&...
+  try {
+    const url = new URL(trimmed);
+    const token = url.searchParams.get("token") ?? url.searchParams.get("token_hash");
+    if (token) {
+      const linkType = url.searchParams.get("type");
+      return {
+        token,
+        type: linkType === "signup" || linkType === "email" ? "email" : "magiclink",
+      };
+    }
+  } catch {
+    // Not a URL; fall through to the failure below.
+  }
+  return null;
+}
+
+/**
+ * Completes sign-in from a code or a pasted link.
  *
  * This is the path that works from an installed app. Tapping a link hands the
- * session to whichever browser the OS opens, and an installed web app has its
- * own storage — so the browser ends up signed in and the app the person is
- * actually holding does not. Typing the code creates the session in whichever
- * copy they typed it into, which is by definition the right one.
+ * session to whichever browser the OS opens, and an installed web app keeps
+ * its own storage — so the browser ends up signed in and the app the person is
+ * actually holding does not. Verifying here creates the session in whichever
+ * copy they are looking at, which is by definition the right one.
  */
 export async function verifyEmailCode(
   email: string,
-  code: string,
+  input: string,
 ): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return "Sync is not configured on this deployment.";
-  const { error } = await supabase.auth.verifyOtp({
-    email,
-    token: code.replace(/\s+/g, ""),
-    type: "email",
-  });
+
+  const parsed = extractSignInToken(input);
+  if (!parsed) {
+    return "Paste the six-digit code, or the whole sign-in link from the email.";
+  }
+
+  const { error } =
+    parsed.type === "magiclink"
+      ? await supabase.auth.verifyOtp({ token_hash: parsed.token, type: "magiclink" })
+      : await supabase.auth.verifyOtp({ email, token: parsed.token, type: "email" });
+
   if (!error) return null;
   if (/expired/i.test(error.message)) {
-    return "That code has expired. Send a new one.";
+    return "That link or code has expired. Send a new one.";
   }
-  if (/invalid/i.test(error.message)) {
-    return "That code is not right. Check the email and try again.";
+  if (/invalid|not found/i.test(error.message)) {
+    return "That did not work. Copy the whole link, and check it has not been used already.";
   }
   return error.message;
 }
