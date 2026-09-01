@@ -39,6 +39,14 @@ export interface GroupsView {
   accept: (invite: PendingInvite) => Promise<api.Result<null>>;
   decline: (groupId: string) => Promise<api.Result<null>>;
   leave: (groupId: string) => Promise<api.Result<null>>;
+  update: (
+    groupId: string,
+    input: { name: string; icon: string; accent: string },
+  ) => Promise<api.Result<null>>;
+  remove: (groupId: string, userId: string) => Promise<api.Result<null>>;
+  destroy: (groupId: string) => Promise<api.Result<null>>;
+  /** Re-points a group at one of the caller's habits. */
+  relink: (groupId: string, habitId: string) => Promise<api.Result<null>>;
 }
 
 export function useGroups(): GroupsView {
@@ -96,8 +104,21 @@ export function useGroups(): GroupsView {
     await Promise.all(
       groupsResult.data.map(async (detail) => {
         const me = detail.members.find((m) => m.userId === session.user.id);
-        if (!me?.habitId) return;
+        if (!me) return;
+
+        // The name someone goes by is set in Settings and can change after
+        // they joined; without this the group shows whatever it captured on
+        // the day, which is often an email prefix.
+        if (state.name && state.name !== me.displayName) {
+          await api.updateMyMembership(detail.group.id, session.user.id, {
+            displayName: state.name,
+          });
+        }
+
+        if (!me.habitId) return;
         const habit = state.habits.find((h) => h.id === me.habitId && !h.deletedAt);
+        // A deleted habit stops publishing rather than publishing zeroes. The
+        // detail sheet spots the dangling link and offers to repair it.
         if (!habit) return;
         await api.publishProgress(detail.group.id, myProgressRows(habit, state.log));
       }),
@@ -213,5 +234,58 @@ export function useGroups(): GroupsView {
     [refresh, userId],
   );
 
-  return { status, groups, invites, error, userId, refresh, create, accept, decline, leave };
+  const update = useCallback<GroupsView["update"]>(
+    async (groupId, input) => {
+      const result = await api.updateGroup(groupId, input);
+      if (result.ok) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const remove = useCallback<GroupsView["remove"]>(
+    async (groupId, memberId) => {
+      const result = await api.removeMember(groupId, memberId);
+      if (result.ok) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const destroy = useCallback<GroupsView["destroy"]>(
+    async (groupId) => {
+      const result = await api.deleteGroup(groupId);
+      // Members' habits are untouched: they belong to the people, not the group.
+      if (result.ok) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const relink = useCallback<GroupsView["relink"]>(
+    async (groupId, habitId) => {
+      if (!userId) return { ok: false, error: "Sign in first." };
+      const result = await api.updateMyMembership(groupId, userId, { habitId });
+      if (result.ok) await refresh();
+      return result;
+    },
+    [refresh, userId],
+  );
+
+  return {
+    status,
+    groups,
+    invites,
+    error,
+    userId,
+    refresh,
+    create,
+    accept,
+    decline,
+    leave,
+    update,
+    remove,
+    destroy,
+    relink,
+  };
 }

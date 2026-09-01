@@ -16,6 +16,7 @@ import { PGlite } from "@electric-sql/pglite";
 const BASE = readFileSync("supabase/migrations/0001_init.sql", "utf8");
 const GROUPS = readFileSync("supabase/migrations/0002_groups.sql", "utf8");
 const PREVIEW = readFileSync("supabase/migrations/0003_group_preview.sql", "utf8");
+const ADMIN = readFileSync("supabase/migrations/0004_group_admin.sql", "utf8");
 
 const ALICE = { id: "11111111-1111-1111-1111-111111111111", email: "alice@example.com" };
 const BOB = { id: "22222222-2222-2222-2222-222222222222", email: "bob@example.com" };
@@ -98,6 +99,7 @@ describe("groups schema", () => {
     await db.exec(BASE);
     await db.exec(GROUPS);
     await db.exec(PREVIEW);
+    await db.exec(ADMIN);
     await db.exec(GRANTS);
   });
 
@@ -469,6 +471,167 @@ describe("groups schema", () => {
         ]),
       );
       assert.equal(preview.length, 0);
+    });
+  });
+
+
+  describe("running a group", () => {
+    async function groupWithBob() {
+      const id = await makeGroup(ALICE);
+      await asUser(ALICE, () => db.query(`select public.invite_to_group($1,$2)`, [id, BOB.email]));
+      await asUser(BOB, () =>
+        db.query(`select public.accept_group_invite($1,$2,$3)`, [id, "bob-habit", "Bob"]),
+      );
+      return id;
+    }
+
+    it("lets the creator rename it", async () => {
+      const id = await groupWithBob();
+      await asUser(ALICE, () =>
+        db.query(`select public.update_group($1,$2,$3,$4)`, [id, "  Evening pages  ", "moon", "ultra"]),
+      );
+      const g = await asUser(BOB, () =>
+        rows<{ name: string; icon: string }>(`select name, icon from public.groups where id = $1`, [id]),
+      );
+      assert.equal(g[0].name, "Evening pages", "the name should be trimmed and saved");
+      assert.equal(g[0].icon, "moon");
+    });
+
+    it("does not let an ordinary member rename it", async () => {
+      const id = await groupWithBob();
+      await assert.rejects(
+        () => asUser(BOB, () => db.query(`select public.update_group($1,$2,$3,$4)`, [id, "Bob's", "fire", "acid"])),
+        /only the group creator/,
+      );
+    });
+
+    it("refuses to blank the name", async () => {
+      const id = await groupWithBob();
+      await assert.rejects(
+        () => asUser(ALICE, () => db.query(`select public.update_group($1,$2,$3,$4)`, [id, "   ", "fire", "acid"])),
+        /needs a name/,
+      );
+    });
+
+    it("removes a member along with the progress they published", async () => {
+      // The group's headline is "how many of us showed up", so somebody who
+      // has left must not linger in the denominator.
+      const id = await groupWithBob();
+      await asUser(BOB, () =>
+        db.query(`select public.publish_group_progress($1,$2::jsonb)`, [
+          id,
+          JSON.stringify([{ period_start: "2026-03-01", completed: true }]),
+        ]),
+      );
+
+      await asUser(ALICE, () =>
+        db.query(`select public.remove_group_member($1,$2)`, [id, BOB.id]),
+      );
+
+      const [members, progress] = await asUser(ALICE, async () => [
+        await rows(`select user_id from public.group_members where group_id = $1`, [id]),
+        await rows(`select user_id from public.group_progress where group_id = $1`, [id]),
+      ]);
+      assert.equal(members.length, 1);
+      assert.equal(progress.length, 0, "the departed member's rows were left behind");
+    });
+
+    it("does not let a member remove anybody", async () => {
+      const id = await groupWithBob();
+      await assert.rejects(
+        () => asUser(BOB, () => db.query(`select public.remove_group_member($1,$2)`, [id, ALICE.id])),
+        /only the group creator/,
+        "a member evicted the creator",
+      );
+    });
+
+    it("refuses to let the creator remove themselves", async () => {
+      // That would leave the group with nobody who can administer it.
+      const id = await groupWithBob();
+      await assert.rejects(
+        () => asUser(ALICE, () => db.query(`select public.remove_group_member($1,$2)`, [id, ALICE.id])),
+        /leave the group instead/,
+      );
+    });
+
+    it("deletes the group and everything attached to it", async () => {
+      const id = await groupWithBob();
+      await asUser(ALICE, () => db.query(`select public.invite_to_group($1,$2)`, [id, "later@example.com"]));
+      await asUser(ALICE, () => db.query(`select public.delete_group($1)`, [id]));
+
+      await db.exec("reset role;");
+      for (const table of ["groups", "group_members", "group_invites", "group_progress"]) {
+        const left = await rows(
+          `select 1 from public.${table} where ${table === "groups" ? "id" : "group_id"} = $1`,
+          [id],
+        );
+        assert.equal(left.length, 0, `${table} still had rows after deleting the group`);
+      }
+    });
+
+    it("does not let a member delete the group", async () => {
+      const id = await groupWithBob();
+      await assert.rejects(
+        () => asUser(BOB, () => db.query(`select public.delete_group($1)`, [id])),
+        /only the group creator/,
+      );
+    });
+
+    it("leaves personal habits alone when a group is deleted", async () => {
+      const id = await groupWithBob();
+      await asUser(BOB, () =>
+        db.query(`select public.push_habits($1::jsonb)`, [
+          JSON.stringify([{
+            id: "bob-habit", name: "Run", icon: "run", accent: "acid", cadence: "daily",
+            target: 1, weekdays: [1], time_of_day: "anytime", start_date: "2026-01-01",
+            created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+          }]),
+        ]),
+      );
+      await asUser(ALICE, () => db.query(`select public.delete_group($1)`, [id]));
+
+      const stillThere = await asUser(BOB, () =>
+        rows(`select id from public.habits where id = 'bob-habit'`),
+      );
+      assert.equal(stillThere.length, 1, "deleting a group destroyed a member's own habit");
+    });
+
+    it("lets a member update their own display name and relink their habit", async () => {
+      const id = await groupWithBob();
+      await asUser(BOB, () =>
+        db.query(
+          `update public.group_members set display_name = $2, habit_id = $3
+             where group_id = $1 and user_id = $4`,
+          [id, "Bobby", "new-habit", BOB.id],
+        ),
+      );
+      const me = await asUser(BOB, () =>
+        rows<{ display_name: string; habit_id: string }>(
+          `select display_name, habit_id from public.group_members
+            where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      assert.equal(me[0].display_name, "Bobby");
+      assert.equal(me[0].habit_id, "new-habit");
+    });
+
+    it("does not let a member rewrite somebody else's row", async () => {
+      const id = await groupWithBob();
+      await asUser(BOB, () =>
+        db.query(
+          `update public.group_members set display_name = 'hacked'
+             where group_id = $1 and user_id = $2`,
+          [id, ALICE.id],
+        ),
+      );
+      const alice = await asUser(ALICE, () =>
+        rows<{ display_name: string }>(
+          `select display_name from public.group_members where group_id = $1 and user_id = $2`,
+          [id, ALICE.id],
+        ),
+      );
+      assert.notEqual(alice[0].display_name, "hacked");
     });
   });
 

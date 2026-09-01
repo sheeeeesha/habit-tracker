@@ -12,14 +12,21 @@ import {
   memberStandings,
 } from "@/lib/groups/progress";
 import type { GroupDetail } from "@/lib/groups/types";
+import type { Habit } from "@/lib/types";
 import { accentOf } from "@/lib/palette";
 
 interface GroupDetailSheetProps {
   open: boolean;
   detail: GroupDetail | null;
   userId: string | null;
+  /** The caller's own habits, for repairing a broken link. */
+  habits: Habit[];
   onClose: () => void;
   onLeave: (groupId: string) => Promise<api.Result<null>>;
+  onRemove: (groupId: string, memberId: string) => Promise<api.Result<null>>;
+  onDestroy: (groupId: string) => Promise<api.Result<null>>;
+  onRelink: (groupId: string, habitId: string) => Promise<api.Result<null>>;
+  onEdit: (detail: GroupDetail) => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -27,8 +34,13 @@ export function GroupDetailSheet({
   open,
   detail,
   userId,
+  habits,
   onClose,
   onLeave,
+  onRemove,
+  onDestroy,
+  onRelink,
+  onEdit,
   onRefresh,
 }: GroupDetailSheetProps) {
   const [email, setEmail] = useState("");
@@ -38,6 +50,8 @@ export function GroupDetailSheet({
   const [pending, setPending] = useState<string[]>([]);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const groupId = detail?.group.id ?? null;
 
@@ -65,6 +79,16 @@ export function GroupDetailSheet({
   const note = groupNote(timeline);
   const periodWord =
     group.cadence === "daily" ? "day" : group.cadence === "weekly" ? "week" : "month";
+  const isCreator = userId === group.createdBy;
+
+  // The habit this group reads from can be deleted like any other, at which
+  // point the member silently stops publishing. Surfacing that beats leaving
+  // somebody to wonder why their name never lights up.
+  const me = members.find((m) => m.userId === userId);
+  const linkedHabit = me?.habitId
+    ? habits.find((h) => h.id === me.habitId && !h.deletedAt && !h.archivedAt)
+    : undefined;
+  const linkBroken = !!me && !linkedHabit;
 
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -185,11 +209,59 @@ export function GroupDetailSheet({
                         : `${Math.round(s.rate * 100)}% of the last ${s.published}`}
                     </span>
                   </span>
+                  {isCreator && !isMe && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (removing !== s.member.userId) {
+                          setRemoving(s.member.userId);
+                          return;
+                        }
+                        if (!groupId) return;
+                        const r = await onRemove(groupId, s.member.userId);
+                        setRemoving(null);
+                        if (!r.ok) setProblem(r.error);
+                      }}
+                      className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-bone/35 transition hover:bg-white/10 hover:text-hyperpink"
+                    >
+                      {removing === s.member.userId ? "Sure?" : "Remove"}
+                    </button>
+                  )}
                 </li>
               );
             })}
           </ul>
         </div>
+
+        {linkBroken && (
+          <div className="rounded-2xl border border-highlight/30 bg-highlight/8 p-4">
+            <p className="text-[0.9375rem] font-semibold text-bone">
+              Nothing is being shared from this device
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-bone/55">
+              The habit this group was reading has been deleted or archived, so
+              your check-ins are not reaching it. Point it at one of your habits
+              to start again.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {habits
+                .filter(
+                  (h) =>
+                    !h.deletedAt && !h.archivedAt && h.cadence === group.cadence,
+                )
+                .map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => void onRelink(group.id, h.id)}
+                    className="rounded-full border border-white/12 px-3 py-1.5 text-xs font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-95"
+                  >
+                    {h.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Invite ------------------------------------------------------- */}
         <div>
@@ -284,29 +356,68 @@ export function GroupDetailSheet({
           )}
         </div>
 
-        <div className="border-t border-white/8 pt-4">
-          <button
-            type="button"
-            onClick={async () => {
-              if (!confirmLeave) {
-                setConfirmLeave(true);
-                return;
-              }
-              if (!groupId) return;
-              const result = await onLeave(groupId);
-              if (result.ok) {
-                onClose();
-                await onRefresh();
-              } else setProblem(result.error);
-            }}
-            className="text-sm font-semibold text-bone/45 transition hover:text-hyperpink"
-          >
-            {confirmLeave ? "Tap again to leave this group" : "Leave group"}
-          </button>
-          <p className="mt-1.5 text-xs leading-relaxed text-bone/30">
-            Your habit and its whole history stay with you. Leaving only stops
-            the group seeing whether you showed up.
-          </p>
+        <div className="space-y-3 border-t border-white/8 pt-4">
+          {isCreator && (
+            <button
+              type="button"
+              onClick={() => onEdit(detail)}
+              className="rounded-full border border-white/12 px-4 py-2 text-sm font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-95"
+            >
+              Edit group
+            </button>
+          )}
+
+          <div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirmLeave) {
+                  setConfirmLeave(true);
+                  return;
+                }
+                if (!groupId) return;
+                const result = await onLeave(groupId);
+                if (result.ok) {
+                  onClose();
+                  await onRefresh();
+                } else setProblem(result.error);
+              }}
+              className="text-sm font-semibold text-bone/45 transition hover:text-hyperpink"
+            >
+              {confirmLeave ? "Tap again to leave this group" : "Leave group"}
+            </button>
+            <p className="mt-1.5 text-xs leading-relaxed text-bone/30">
+              Your habit and its whole history stay with you. Leaving only stops
+              the group seeing whether you showed up.
+            </p>
+          </div>
+
+          {isCreator && (
+            <div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirmDelete) {
+                    setConfirmDelete(true);
+                    return;
+                  }
+                  if (!groupId) return;
+                  const result = await onDestroy(groupId);
+                  if (result.ok) onClose();
+                  else setProblem(result.error);
+                }}
+                className="text-sm font-semibold text-bone/45 transition hover:text-hyperpink"
+              >
+                {confirmDelete
+                  ? "Tap again to delete this group for everyone"
+                  : "Delete group"}
+              </button>
+              <p className="mt-1.5 text-xs leading-relaxed text-bone/30">
+                Removes the group for every member. Nobody loses their habit or
+                any of its history &mdash; those were always theirs.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </Sheet>

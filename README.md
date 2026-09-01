@@ -264,6 +264,31 @@ The landing page's real job is explaining the failure that is otherwise
 baffling: **signing in with a different address than you were invited on looks
 exactly like not being invited at all.**
 
+### Running a group
+
+The creator is the admin — rename and restyle it, remove somebody, delete it.
+Everyone else can leave and can maintain their own row (the name they go by,
+and which of their habits the group reads).
+
+Removing a member takes their published progress with them. The group's
+headline is *how many of us showed up*, so somebody who joined and drifted away
+would otherwise sit in the denominator forever, quietly making everyone else's
+number look worse.
+
+**The rhythm cannot be edited**, and that is a decision rather than an omission.
+Every member republishes their recent periods on each refresh, so changing the
+target would re-score history the group has already seen: periods people
+remember completing would flip to missed. A group that wants a different rhythm
+is a different group.
+
+Deleting a group removes it for everyone and touches nobody's habit or history.
+Those belong to the individuals and always did — there is a test for it.
+
+If the habit a member linked gets deleted or archived, they silently stop
+publishing. The group sheet notices the dangling link and offers to point it at
+another habit, rather than leaving somebody wondering why their name never
+lights up.
+
 ### No leaderboard, deliberately
 
 The group view shows *how many of us showed up*, never a ranking. Social

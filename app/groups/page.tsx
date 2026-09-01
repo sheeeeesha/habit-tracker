@@ -6,12 +6,15 @@ import { Aurora } from "@/components/Aurora";
 import { HabitTile } from "@/components/HabitGlyph";
 import { CaretLeft, ICON_WEIGHT, Plus } from "@/components/icons";
 import { GroupComposer } from "@/components/groups/GroupComposer";
+import { GroupEditSheet } from "@/components/groups/GroupEditSheet";
 import { GroupDetailSheet } from "@/components/groups/GroupDetailSheet";
 import { InviteLanding } from "@/components/groups/InviteLanding";
 import { useGroups } from "@/lib/groups/useGroups";
 import { currentTally, groupTimeline } from "@/lib/groups/progress";
 import type { GroupDetail, PendingInvite } from "@/lib/groups/types";
 import { accentOf } from "@/lib/palette";
+import { useStore } from "@/lib/store";
+import { isActive } from "@/lib/types";
 import { clearUrlFlag, useUrlValue } from "@/lib/useUrlFlag";
 
 function cadenceLine(cadence: string, target: number) {
@@ -23,6 +26,8 @@ export default function GroupsPage() {
   const groups = useGroups();
   const [composing, setComposing] = useState(false);
   const [open, setOpen] = useState<GroupDetail | null>(null);
+  const [editing, setEditing] = useState<GroupDetail | null>(null);
+  const { habits } = useStore();
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -275,12 +280,24 @@ export default function GroupsPage() {
       />
       <GroupDetailSheet
         key={detail?.group.id ?? "none"}
-        open={!!detail}
+        open={!!detail && !editing}
         detail={detail}
         userId={groups.userId}
+        habits={habits.filter(isActive)}
         onClose={() => setOpen(null)}
         onLeave={groups.leave}
+        onRemove={groups.remove}
+        onDestroy={groups.destroy}
+        onRelink={groups.relink}
+        onEdit={setEditing}
         onRefresh={groups.refresh}
+      />
+      <GroupEditSheet
+        key={`edit-${editing?.group.id ?? "none"}`}
+        open={!!editing}
+        detail={editing}
+        onClose={() => setEditing(null)}
+        onSave={groups.update}
       />
     </>
   );

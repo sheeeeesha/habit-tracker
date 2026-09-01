@@ -289,6 +289,85 @@ export async function publishProgress(
   }
 }
 
+export async function updateGroup(
+  groupId: string,
+  input: { name: string; icon: string; accent: string },
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase.rpc("update_group", {
+      p_group_id: groupId,
+      p_name: input.name,
+      p_icon: input.icon,
+      p_accent: input.accent,
+    });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not save the group."));
+  }
+}
+
+export async function removeMember(
+  groupId: string,
+  userId: string,
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase.rpc("remove_group_member", {
+      p_group_id: groupId,
+      p_user_id: userId,
+    });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not remove them."));
+  }
+}
+
+export async function deleteGroup(groupId: string): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase.rpc("delete_group", { p_group_id: groupId });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not delete the group."));
+  }
+}
+
+/**
+ * Keeps the caller's own row current: the name they go by, and which habit
+ * this group reads. Covered by the "members maintain their own row" policy,
+ * so it needs no function of its own.
+ */
+export async function updateMyMembership(
+  groupId: string,
+  userId: string,
+  patch: { displayName?: string; habitId?: string },
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  const row: Record<string, string> = {};
+  if (patch.displayName !== undefined) row.display_name = patch.displayName;
+  if (patch.habitId !== undefined) row.habit_id = patch.habitId;
+  if (!Object.keys(row).length) return ok(null);
+  try {
+    const { error } = await supabase
+      .from("group_members")
+      .update(row)
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not update your details."));
+  }
+}
+
 /** Pending invitations sent by this group, so members can see and revoke them. */
 export async function listSentInvites(groupId: string): Promise<Result<string[]>> {
   const supabase = await client();
