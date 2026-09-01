@@ -2,7 +2,13 @@
 
 import { getSupabase } from "../supabase/client";
 import type { Cadence } from "../date";
-import type { GroupDetail, GroupMember, PendingInvite, ProgressRow } from "./types";
+import type {
+  GroupDetail,
+  GroupMember,
+  GroupPreview,
+  PendingInvite,
+  ProgressRow,
+} from "./types";
 import type { PublishRow } from "./progress";
 
 /**
@@ -28,6 +34,11 @@ function friendly(message: string): string {
   }
   if (/not a member/i.test(message)) return "You are not in this group.";
   if (/failed to fetch|network/i.test(message)) return "Can't reach the network.";
+  // PostgREST's answer when a function or table does not exist, which in
+  // practice means the groups migrations have not been run on this project.
+  if (/schema cache|could not find the (function|table)|does not exist/i.test(message)) {
+    return "Shared habits aren't set up on this deployment yet.";
+  }
   return message;
 }
 
@@ -36,6 +47,37 @@ async function client() {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session ? supabase : null;
+}
+
+/**
+ * What a group looks like to somebody following a shared link.
+ *
+ * Works without a session on purpose — the whole point is that a person who
+ * has never opened the app can see what they are being asked to join. It
+ * returns the group's name and rhythm and nothing else, and following a link
+ * grants no access whatsoever.
+ */
+export async function groupPreview(groupId: string): Promise<Result<GroupPreview>> {
+  const supabase = getSupabase();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { data, error } = await supabase.rpc("group_preview", {
+      p_group_id: groupId,
+    });
+    if (error) throw new Error(error.message);
+    const row = (data ?? [])[0] as Record<string, unknown> | undefined;
+    if (!row) return fail("That invite link points at a group that no longer exists.");
+    return ok({
+      name: row.name as string,
+      icon: row.icon as string,
+      accent: row.accent as string,
+      cadence: row.cadence as Cadence,
+      target: row.target as number,
+      memberCount: Number(row.member_count ?? 0),
+    });
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not read that link."));
+  }
 }
 
 export async function listGroups(): Promise<Result<GroupDetail[]>> {

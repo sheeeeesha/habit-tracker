@@ -241,6 +241,29 @@ Knowing a group id is not enough, and neither is an invitation addressed to
 somebody else; both are tested. Nothing is shared until the invitee accepts, so
 being invited leaks nothing about you to the group.
 
+### The invite link
+
+Nothing is emailed. An invitation is a row that appears when the invitee opens
+Together signed in with the address it was sent to — which is secure, and
+invisible to anyone who does not already use the app.
+
+**Share invite link** closes that gap: it produces `/groups?invite=<group_id>`
+to send over whatever you actually talk on. The link is a **pointer, not a
+credential**. Following it grants nothing; the recipient still only sees the
+invitation if it was addressed to the verified address on their own account,
+and there is a test asserting that holding the link does not let you join.
+
+What the link does expose to whoever holds it is the group's name, rhythm and
+member count, through `group_preview` — readable without a session so that
+somebody who has never opened the app can see what they are being asked to
+join. Not member names, not anyone's progress, not the invite list. That is the
+unlisted-link model: the id is a random uuid, and the only way to have one is
+for a member to have sent it to you.
+
+The landing page's real job is explaining the failure that is otherwise
+baffling: **signing in with a different address than you were invited on looks
+exactly like not being invited at all.**
+
 ### No leaderboard, deliberately
 
 The group view shows *how many of us showed up*, never a ranking. Social

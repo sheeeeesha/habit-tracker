@@ -7,10 +7,12 @@ import { HabitTile } from "@/components/HabitGlyph";
 import { CaretLeft, ICON_WEIGHT, Plus } from "@/components/icons";
 import { GroupComposer } from "@/components/groups/GroupComposer";
 import { GroupDetailSheet } from "@/components/groups/GroupDetailSheet";
+import { InviteLanding } from "@/components/groups/InviteLanding";
 import { useGroups } from "@/lib/groups/useGroups";
 import { currentTally, groupTimeline } from "@/lib/groups/progress";
 import type { GroupDetail, PendingInvite } from "@/lib/groups/types";
 import { accentOf } from "@/lib/palette";
+import { clearUrlFlag, useUrlValue } from "@/lib/useUrlFlag";
 
 function cadenceLine(cadence: string, target: number) {
   const per = cadence === "daily" ? "day" : cadence === "weekly" ? "week" : "month";
@@ -23,6 +25,12 @@ export default function GroupsPage() {
   const [open, setOpen] = useState<GroupDetail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+
+  // Someone arriving from a shared link. The id is only ever used to look up
+  // what the group is called — it grants nothing.
+  const linkedGroupId = useUrlValue("invite");
+  const [linkDismissed, setLinkDismissed] = useState(false);
+  const showLanding = !!linkedGroupId && !linkDismissed;
 
   const detail = open ? groups.groups.find((g) => g.group.id === open.group.id) ?? null : null;
 
@@ -58,18 +66,33 @@ export default function GroupsPage() {
               people. Everything else in the app keeps working without one.
             </p>
           ) : groups.status === "signed-out" ? (
-            <div className="card p-6">
+            <div className="space-y-3">
+              {showLanding && linkedGroupId && (
+                <InviteLanding
+                  groupId={linkedGroupId}
+                  invitesLoaded={false}
+                  hasInvite={false}
+                  alreadyMember={false}
+                  signedIn={false}
+                  onDismiss={() => {
+                    setLinkDismissed(true);
+                    clearUrlFlag("invite");
+                  }}
+                />
+              )}
+              <div className="card p-6">
               <p className="text-base font-bold text-bone">Sign in to track together</p>
               <p className="mt-1.5 text-sm leading-relaxed text-bone/55">
                 Your own habits stay on this device either way. Signing in is
                 what lets a group see whether you showed up — and nothing else.
               </p>
-              <Link
-                href="/?settings=1"
-                className="mt-4 inline-block rounded-2xl bg-fresh px-5 py-3 text-sm font-bold text-[#00160a] transition active:scale-95"
-              >
-                Open Settings
-              </Link>
+                <Link
+                  href="/?settings=1"
+                  className="mt-4 inline-block rounded-2xl bg-fresh px-5 py-3 text-sm font-bold text-[#00160a] transition active:scale-95"
+                >
+                  Open Settings
+                </Link>
+              </div>
             </div>
           ) : groups.status === "error" ? (
             <div className="card p-6">
@@ -89,6 +112,21 @@ export default function GroupsPage() {
                 <p className="rounded-2xl border border-hyperpink/30 bg-hyperpink/10 px-4 py-3 text-sm font-medium text-hyperpink">
                   {problem}
                 </p>
+              )}
+
+              {showLanding && linkedGroupId && (
+                <InviteLanding
+                  groupId={linkedGroupId}
+                  invitesLoaded={groups.status === "ready"}
+                  hasInvite={groups.invites.some((i) => i.groupId === linkedGroupId)}
+                  alreadyMember={groups.groups.some((g) => g.group.id === linkedGroupId)}
+                  // Narrowed to loading/ready by this branch.
+                  signedIn
+                  onDismiss={() => {
+                    setLinkDismissed(true);
+                    clearUrlFlag("invite");
+                  }}
+                />
               )}
 
               {/* Invitations — nothing is shared until one of these is accepted. */}

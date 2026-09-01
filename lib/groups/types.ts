@@ -41,6 +41,16 @@ export interface GroupDetail {
   progress: ProgressRow[];
 }
 
+/** The little a shared invite link reveals, before anyone signs in. */
+export interface GroupPreview {
+  name: string;
+  icon: string;
+  accent: string;
+  cadence: Cadence;
+  target: number;
+  memberCount: number;
+}
+
 export interface PendingInvite {
   groupId: string;
   name: string;

@@ -23,6 +23,15 @@ export function useUrlFlag(name: string): boolean {
   );
 }
 
+/** Reads a query param's value as external state, like `useUrlFlag`. */
+export function useUrlValue(name: string): string | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => new URLSearchParams(window.location.search).get(name),
+    () => null,
+  );
+}
+
 /** Drops a query param without a navigation — safe to call from a handler. */
 export function clearUrlFlag(name: string) {
   const url = new URL(window.location.href);

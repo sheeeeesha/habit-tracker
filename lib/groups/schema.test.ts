@@ -15,6 +15,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const BASE = readFileSync("supabase/migrations/0001_init.sql", "utf8");
 const GROUPS = readFileSync("supabase/migrations/0002_groups.sql", "utf8");
+const PREVIEW = readFileSync("supabase/migrations/0003_group_preview.sql", "utf8");
 
 const ALICE = { id: "11111111-1111-1111-1111-111111111111", email: "alice@example.com" };
 const BOB = { id: "22222222-2222-2222-2222-222222222222", email: "bob@example.com" };
@@ -44,6 +45,9 @@ const STUBS = `
     if not exists (select 1 from pg_roles where rolname = 'authenticated') then
       create role authenticated;
     end if;
+    if not exists (select 1 from pg_roles where rolname = 'anon') then
+      create role anon;
+    end if;
   end $do$;
 `;
 
@@ -53,6 +57,8 @@ const GRANTS = `
     public.habits, public.checkins, public.groups, public.group_members,
     public.group_invites, public.group_progress to authenticated;
   grant select on public._session to authenticated;
+  grant usage on schema public, auth to anon;
+  grant select on public._session to anon;
 `;
 
 let db: PGlite;
@@ -91,6 +97,7 @@ describe("groups schema", () => {
     await db.exec(STUBS);
     await db.exec(BASE);
     await db.exec(GROUPS);
+    await db.exec(PREVIEW);
     await db.exec(GRANTS);
   });
 
@@ -360,6 +367,108 @@ describe("groups schema", () => {
       );
       assert.equal(seen.length, 1);
       assert.equal(seen[0].completed, false);
+    });
+  });
+
+
+  describe("the shareable invite link", () => {
+    /**
+     * The link exists so somebody who has never opened the app can see what
+     * they are being asked to join. It must show enough to decide on and
+     * nothing more — and above all it must not be a way in.
+     */
+    async function asAnon<T>(fn: () => Promise<T>): Promise<T> {
+      await db.exec("set role anon;");
+      try {
+        return await fn();
+      } finally {
+        await db.exec("reset role;");
+      }
+    }
+
+    it("shows a signed-out visitor what the group is", async () => {
+      const id = await makeGroup(ALICE, "Morning pages");
+      const preview = await asAnon(() =>
+        rows<{ name: string; member_count: number }>(
+          `select * from public.group_preview($1)`,
+          [id],
+        ),
+      );
+      assert.equal(preview.length, 1);
+      assert.equal(preview[0].name, "Morning pages");
+      assert.equal(Number(preview[0].member_count), 1);
+    });
+
+    it("exposes nothing about who is in it or how they are doing", async () => {
+      const id = await makeGroup(ALICE);
+      await asUser(ALICE, () =>
+        db.query(`select public.publish_group_progress($1,$2::jsonb)`, [
+          id,
+          JSON.stringify([{ period_start: "2026-03-01", completed: true }]),
+        ]),
+      );
+
+      // Denied and empty are both acceptable answers here; what matters is
+      // that nothing comes back. Anonymous callers are in fact refused
+      // outright, which is the stronger of the two.
+      const unreadable = async (sql: string) => {
+        try {
+          return (await rows(sql, [id])).length === 0;
+        } catch {
+          return true;
+        }
+      };
+
+      await asAnon(async () => {
+        assert.ok(
+          await unreadable(`select * from public.group_members where group_id = $1`),
+          "anon could read the member list",
+        );
+        assert.ok(
+          await unreadable(`select * from public.group_progress where group_id = $1`),
+          "anon could read progress",
+        );
+        assert.ok(
+          await unreadable(`select * from public.group_invites where group_id = $1`),
+          "anon could read the invite list",
+        );
+        assert.ok(
+          await unreadable(`select * from public.groups where id = $1`),
+          "anon could read the group row directly",
+        );
+      });
+
+      // And the preview itself carries only the decision-making fields.
+      const preview = await asAnon(() =>
+        rows<Record<string, unknown>>(`select * from public.group_preview($1)`, [id]),
+      );
+      assert.deepEqual(
+        Object.keys(preview[0]).sort(),
+        ["accent", "cadence", "icon", "member_count", "name", "target"],
+        "the preview grew a field that was not reviewed",
+      );
+    });
+
+    it("is not a way in — following the link grants nothing", async () => {
+      // The entire security argument for the link rests on this.
+      const id = await makeGroup(ALICE);
+      await assert.rejects(
+        () =>
+          asUser(MALLORY, () =>
+            db.query(`select public.accept_group_invite($1,$2,$3)`, [id, "m", "Mallory"]),
+          ),
+        /no invitation for this account/,
+        "holding the link let someone join",
+      );
+    });
+
+    it("returns nothing for a group id that does not exist", async () => {
+      const preview = await asAnon(() =>
+        rows(`select * from public.group_preview($1)`, [
+          "99999999-9999-9999-9999-999999999999",
+        ]),
+      );
+      assert.equal(preview.length, 0);
     });
   });
 

@@ -37,6 +37,7 @@ export function GroupDetailSheet({
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, setPending] = useState<string[]>([]);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const groupId = detail?.group.id ?? null;
 
@@ -216,12 +217,45 @@ export function GroupDetailSheet({
             </button>
             {sent && (
               <p className="mt-2 text-xs leading-relaxed text-bone/55">
-                Invitation recorded for <span className="text-bone">{sent}</span>. If
-                they have an account it appears the next time they open Together.
-                They join nothing until they accept.
+                Invitation recorded for <span className="text-bone">{sent}</span>.
+                Nothing is emailed &mdash; it appears when they open Together and
+                sign in with that address. Send them the link below so they know.
               </p>
             )}
           </form>
+
+          {/* The link is a pointer, not a key: following it grants nothing.
+              The recipient still only sees the invitation if it was addressed
+              to the verified address on their own account. */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (!groupId) return;
+              const url = `${window.location.origin}/groups?invite=${groupId}`;
+              try {
+                if (navigator.share) {
+                  await navigator.share({
+                    title: group.name,
+                    text: `Join "${group.name}" on StreakWrapped`,
+                    url,
+                  });
+                } else {
+                  await navigator.clipboard.writeText(url);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 2500);
+                }
+              } catch {
+                // Share sheet dismissed, or the clipboard was refused.
+              }
+            }}
+            className="mt-2 w-full rounded-xl border border-white/12 px-4 py-2.5 text-sm font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-[0.98]"
+          >
+            {copied ? "Link copied" : "Share invite link"}
+          </button>
+          <p className="mt-1.5 text-xs leading-relaxed text-bone/35">
+            Safe to send anywhere. The link only opens the app &mdash; whoever
+            follows it still has to sign in with the address you invited.
+          </p>
 
           {pending.length > 0 && (
             <ul className="mt-2 space-y-1.5">
