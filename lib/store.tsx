@@ -133,10 +133,39 @@ const SERVER_SNAPSHOT: Snapshot = Object.freeze({
 let snapshot: Snapshot = SERVER_SNAPSHOT;
 let loaded = false;
 let storageBound = false;
+
+/** React subscribers. Notified for every change, whatever caused it. */
 const listeners = new Set<() => void>();
+
+/**
+ * Subscribers that only care about changes this device originated.
+ *
+ * Sync lives here, and the distinction is load-bearing. A completed sync
+ * writes the merged result back into the store, which is a change like any
+ * other — so a sync listener on every change means each sync schedules the
+ * next one, forever, at the debounce interval. Nothing looks wrong: the app
+ * behaves correctly and quietly talks to the network every couple of seconds
+ * for as long as it is open.
+ */
+const localListeners = new Set<() => void>();
+
+/** True while a sync result is being written back. */
+let applyingRemote = false;
 
 function emit() {
   for (const listener of listeners) listener();
+  if (applyingRemote) return;
+  for (const listener of localListeners) listener();
+}
+
+/** Applies a change that came from the server, without provoking a new sync. */
+function applyFromSync(write: () => void) {
+  applyingRemote = true;
+  try {
+    write();
+  } finally {
+    applyingRemote = false;
+  }
 }
 
 /** The motion preference is consumed by CSS, so mirror it onto <html>. */
@@ -224,9 +253,19 @@ export function isHydrated(): boolean {
   return snapshot.hydrated;
 }
 
-/** Lets the sync engine subscribe without going through React. */
-export function subscribeToStore(onChange: () => void): () => void {
-  return subscribe(onChange);
+/**
+ * Subscribes to changes made on this device.
+ *
+ * Deliberately not fired for state written back by a sync — see
+ * `localListeners`. Anything that wants every change, including remote ones,
+ * should go through React.
+ */
+export function subscribeToLocalChanges(onChange: () => void): () => void {
+  ensureLoaded();
+  localListeners.add(onChange);
+  return () => {
+    localListeners.delete(onChange);
+  };
 }
 
 export interface StoreValue {
@@ -336,7 +375,9 @@ export function resetAll() {
 
 /** Applies a merged result from the sync engine. */
 export function applyMerged(habits: Habit[], log: CompletionLog, sync: Partial<SyncState>) {
-  update((s) => ({ ...s, habits, log, sync: { ...s.sync, ...sync } }));
+  applyFromSync(() =>
+    update((s) => ({ ...s, habits, log, sync: { ...s.sync, ...sync } })),
+  );
 }
 
 /**
@@ -345,11 +386,14 @@ export function applyMerged(habits: Habit[], log: CompletionLog, sync: Partial<S
  * reduced has nothing to do with who is signed in.
  */
 export function resetForAccount(ownerId: string) {
-  update((s) => ({
+  // Also sync-originated: it runs inside runSync when the account changes.
+  applyFromSync(() =>
+    update((s) => ({
     ...emptyState(),
-    prefs: s.prefs,
-    sync: { ...DEFAULT_SYNC, ownerId, userId: ownerId },
-  }));
+      prefs: s.prefs,
+      sync: { ...DEFAULT_SYNC, ownerId, userId: ownerId },
+    })),
+  );
 }
 
 /** Replaces everything — used by the backup importer. */

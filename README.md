@@ -437,6 +437,33 @@ domain lands in spam more often than not, because the domain has no sending
 reputation yet. Publish a DMARC record (`_dmarc`, starting at `p=none`) once
 SPF and DKIM verify.
 
+### When it runs
+
+Event-driven, never on a timer. There is no polling anywhere.
+
+- **2.5s after the last local change**, debounced — eight taps produce one sync
+- On returning to the foreground, on regaining a network, on load, and on
+  signing in or out
+- On demand from Settings ▸ *Sync now*
+
+An idle app has no timer running at all, and a backgrounded one is frozen by
+the OS. The cost of a normal day is a handful of small requests.
+
+Local writes never wait on any of this: a check-in is in localStorage before
+the network is touched, and the pull cursor only advances on a fully
+successful round trip, so a failed attempt simply retries on the next trigger.
+
+The gap this leaves is that another device's changes do not arrive until you
+foreground the app. For a habit tracker that is the right trade — foregrounding
+is the moment you care — but it would be wrong for anything conversational.
+
+**A sync write-back is not a local change.** The merged result goes back into
+the store, which is a change like any other, so a sync listener on *every*
+change means each sync schedules the next one and the app talks to the network
+forever at the debounce interval — behaving perfectly correctly the whole time.
+`subscribeToLocalChanges` exists for exactly that distinction, and
+`lib/store.test.ts` pins it.
+
 ### How conflicts are resolved
 
 Last-write-wins, resolved **per habit row and per (habit, day) check-in cell**

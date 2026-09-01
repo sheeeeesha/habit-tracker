@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase, isSyncConfigured } from "../supabase/client";
-import { subscribeToStore, readState } from "../store";
+import { subscribeToLocalChanges, readState } from "../store";
 import { syncNow, type SyncOutcome } from "./engine";
 
 export type SyncStatus =
@@ -134,7 +134,7 @@ export function useSync(): SyncView {
       if (document.visibilityState === "visible") void run();
     };
 
-    const unsubscribe = subscribeToStore(schedule);
+    const unsubscribe = subscribeToLocalChanges(schedule);
     window.addEventListener("online", immediate);
     document.addEventListener("visibilitychange", immediate);
 
