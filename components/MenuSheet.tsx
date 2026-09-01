@@ -222,9 +222,9 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
               </>
             ) : (
               <>
-                Everything lives in this browser on this device — no account, no
-                server. Clearing site data wipes it, so export a backup if it
-                matters.
+                Your habits live in this browser on this device and are not sent
+                anywhere. Clearing site data wipes them, so export a backup if
+                it matters.
               </>
             )}
           </p>

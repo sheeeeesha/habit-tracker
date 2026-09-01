@@ -194,8 +194,9 @@ export function InstallCTA({ variant = "banner" }: InstallCTAProps) {
         </ol>
 
         <p className="mt-4 text-xs leading-relaxed text-bone/35">
-          Your habits are stored on this device. Adding the app to your home screen
-          keeps the same data &mdash; nothing is uploaded anywhere.
+          Your habits are stored on this device. Adding the app to your home
+          screen keeps the same data &mdash; they are only ever uploaded if you
+          sign in, and then only to your own account.
         </p>
       </Sheet>
     </>

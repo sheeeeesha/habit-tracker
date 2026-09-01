@@ -3,6 +3,7 @@ import { Anton, Outfit } from "next/font/google";
 import Script from "next/script";
 import { AppRuntime } from "@/components/AppRuntime";
 import { SyncProvider } from "@/components/SyncProvider";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const anton = Anton({
@@ -83,6 +84,10 @@ export default function RootLayout({
         </Script>
         <SyncProvider>{children}</SyncProvider>
         <AppRuntime />
+        {/* Vercel Web Analytics: cookieless page-view counts, no cross-site
+            tracking, and no habit data — that never leaves the device except
+            to the user's own Supabase account. */}
+        <Analytics />
       </body>
     </html>
   );

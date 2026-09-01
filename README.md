@@ -4,8 +4,8 @@ A habit tracker with two jobs: make checking something off feel good, and once a
 year's worth of check-ins has piled up, replay it as a Spotify-Wrapped-style
 story.
 
-Works with no account and no network. Sign in and the same history syncs
-across devices without giving up any of that.
+Your habits need no account and never leave the device unless you sign in, in
+which case they sync across your own devices.
 
 ---
 
@@ -233,7 +233,8 @@ Sources: [Lally et al., 2010](https://onlinelibrary.wiley.com/doi/10.1002/ejsp.6
 ## Sync
 
 Sync is **optional and local-first**. With no Supabase project configured the
-app behaves exactly as described above — local only, no account, no network.
+app behaves exactly as described above: habits stay on the device, no account
+required.
 Attach one and the same local database gains a durable backup and cross-device
 history.
 
@@ -406,6 +407,21 @@ beyond environment variables.
    if they are not Vercel's, that is your registrar's DNS panel, not Vercel.
 5. **Add the deployed URL to Supabase** under Authentication ▸ URL
    Configuration, or magic links will bounce.
+
+### Analytics
+
+Vercel Web Analytics is wired up in `app/layout.tsx`. It has to be switched on
+for the project as well — **Vercel ▸ your project ▸ Analytics ▸ Enable** — or
+the script 404s and nothing is recorded.
+
+It counts page views, visitors, referrers and rough device and country
+breakdowns. It is cookieless and does not follow anyone between sites. **No
+habit data goes near it**: check-ins live on the device, and reach your own
+Supabase project only if you sign in. Nothing about what you track, or how
+often, is sent to Vercel.
+
+The free tier caps events per month, and the script is a no-op in local
+development, so figures only appear for the deployed site.
 
 ### Notes for a custom domain
 
