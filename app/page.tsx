@@ -259,6 +259,30 @@ export default function HomePage() {
             </ul>
           )}
 
+          {/* Insights ---------------------------------------------------- */}
+          {active.length > 0 && (
+            <Link
+              href="/insights"
+              className="card mt-6 flex items-center justify-between gap-4 p-4 transition hover:bg-white/8 active:scale-[0.99] sm:p-5"
+            >
+              <span>
+                <span className="block text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-bone/40">
+                  What the data says
+                </span>
+                <span className="mt-1 block text-lg font-bold leading-tight">Insights</span>
+                <span className="mt-0.5 block text-sm text-bone/50">
+                  How close each habit is to automatic, and where it slips.
+                </span>
+              </span>
+              <span
+                aria-hidden
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-bone"
+              >
+                <ArrowRight size={18} weight={ICON_WEIGHT} />
+              </span>
+            </Link>
+          )}
+
           {/* Wrapped entry point --------------------------------------- */}
           {active.length > 0 && (
             <Link

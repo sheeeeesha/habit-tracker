@@ -177,6 +177,59 @@ back.
 
 ---
 
+## Insights
+
+`/insights` is built from findings rather than from what other habit
+dashboards happen to draw. Each panel records the result it exists because of,
+and a few obvious charts are deliberately absent.
+
+**On the way to automatic** — Lally et al. (2010) fitted an asymptotic curve to
+daily automaticity ratings: a median of 66 days to reach 95% of the asymptote,
+with an individual range of 18 to 254. Two things follow that most trackers get
+backwards. The curve responds to *repetitions*, not elapsed time, so a habit
+done half the days is not halfway — it is 66 repetitions away. And the range is
+so wide that a single "you'll have this in N days" number would be false
+precision, so the chart shows a position on a curve against the whole range.
+Hidden for weekly and monthly habits: Lally studied daily behaviours and the
+curve has no established meaning at other cadences.
+
+**When you miss** — the same study found that missing one opportunity did not
+materially affect habit formation. What does the damage is the abstinence
+violation effect (Polivy & Herman): one lapse reframes the goal as already
+broken, and the second miss is where people quit. So this panel does not count
+missed days. It counts how often a miss became *two*, which is both the real
+failure mode and the one thing actionable tomorrow.
+
+**Consistency, rolling** — Harkin et al. (2016), 138 studies and ~20,000
+participants: monitoring progress raises attainment (d+ = 0.40), mediated by
+how often progress is actually monitored. Trailing 28 periods rather than
+calendar months, because the 1st of the month means nothing to a habit.
+
+**By day of the week** — context stability predicts both automaticity and goal
+attainment (Wood & Neal; replicated in 2022 across 218 app users and 308
+habits). Weekday is a coarse proxy for context, but it is the one this app can
+measure honestly, and the weakest day is flagged because that is the routine
+worth planning rather than the one to push harder on.
+
+### What is deliberately not here
+
+- **No correlations between habits.** Over a handful of habits and a few
+  hundred days, those correlations are dominated by noise and by testing many
+  pairs at once. A scatter plot reading "meditation drives sleep, r = 0.74"
+  would be inventing a finding.
+- **No time-of-day analysis.** Each cell stores when it was *written*, which
+  changes when you backfill a day or migrate the schema. Presenting that as
+  when you performed the habit would be reporting an artefact as behaviour.
+- **Nothing at all below 10 completed periods.** Rates from fewer swing on a
+  single day, and a chart that looks confident about noise is worse than no
+  chart.
+
+Sources: [Lally et al., 2010](https://onlinelibrary.wiley.com/doi/10.1002/ejsp.674) ·
+[Harkin et al., 2016](https://pubmed.ncbi.nlm.nih.gov/26479070/) ·
+[context stability, 2022](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.883795/full)
+
+---
+
 ## Sync
 
 Sync is **optional and local-first**. With no Supabase project configured the
