@@ -17,6 +17,7 @@ const BASE = readFileSync("supabase/migrations/0001_init.sql", "utf8");
 const GROUPS = readFileSync("supabase/migrations/0002_groups.sql", "utf8");
 const PREVIEW = readFileSync("supabase/migrations/0003_group_preview.sql", "utf8");
 const ADMIN = readFileSync("supabase/migrations/0004_group_admin.sql", "utf8");
+const REVOKE = readFileSync("supabase/migrations/0005_revoke_anon.sql", "utf8");
 
 const ALICE = { id: "11111111-1111-1111-1111-111111111111", email: "alice@example.com" };
 const BOB = { id: "22222222-2222-2222-2222-222222222222", email: "bob@example.com" };
@@ -60,6 +61,10 @@ const GRANTS = `
   grant select on public._session to authenticated;
   grant usage on schema public, auth to anon;
   grant select on public._session to anon;
+  -- Supabase grants execute on public functions to anon by default; without
+  -- reproducing that, migration 0005 would have nothing to revoke and the
+  -- test below would pass for the wrong reason.
+  grant execute on all functions in schema public to anon;
 `;
 
 let db: PGlite;
@@ -101,6 +106,7 @@ describe("groups schema", () => {
     await db.exec(PREVIEW);
     await db.exec(ADMIN);
     await db.exec(GRANTS);
+    await db.exec(REVOKE);
   });
 
   after(async () => {
@@ -632,6 +638,50 @@ describe("groups schema", () => {
         ),
       );
       assert.notEqual(alice[0].display_name, "hacked");
+    });
+  });
+
+
+  describe("anonymous callers", () => {
+    async function asAnonRaw<T>(fn: () => Promise<T>): Promise<T> {
+      await db.exec("set role anon;");
+      try {
+        return await fn();
+      } finally {
+        await db.exec("reset role;");
+      }
+    }
+
+    it("cannot execute the authenticated-only functions at all", async () => {
+      // Each of these also refuses internally, but the grant is the outer
+      // wall and should not be the one that is missing.
+      const guarded: Array<[string, unknown[]]> = [
+        ["select public.my_pending_invites()", []],
+        ["select public.invite_to_group($1,$2)", [
+          "99999999-9999-9999-9999-999999999999", "a@b.com",
+        ]],
+        ["select public.accept_group_invite($1,$2,$3)", [
+          "99999999-9999-9999-9999-999999999999", "h", "x",
+        ]],
+        ["select public.delete_group($1)", ["99999999-9999-9999-9999-999999999999"]],
+        ["select public.push_habits($1::jsonb)", ["[]"]],
+      ];
+
+      for (const [sql, params] of guarded) {
+        await assert.rejects(
+          () => asAnonRaw(() => db.query(sql, params)),
+          /permission denied/i,
+          `anon could still call: ${sql}`,
+        );
+      }
+    });
+
+    it("can still read a group preview, which is the point of it", async () => {
+      const id = await makeGroup(ALICE, "Open to a link");
+      const preview = await asAnonRaw(() =>
+        rows<{ name: string }>(`select * from public.group_preview($1)`, [id]),
+      );
+      assert.equal(preview[0].name, "Open to a link");
     });
   });
 
