@@ -284,10 +284,16 @@ is a different group.
 Deleting a group removes it for everyone and touches nobody's habit or history.
 Those belong to the individuals and always did — there is a test for it.
 
-If the habit a member linked gets deleted or archived, they silently stop
-publishing. The group sheet notices the dangling link and offers to point it at
-another habit, rather than leaving somebody wondering why their name never
-lights up.
+If the habit a member linked gets deleted or archived, they stop publishing but
+stay in the group. That combination is worse than it sounds: they remain in the
+denominator, so the group's count sticks permanently below its membership,
+their previously published rows linger until the window slides past them, and
+the local check-in history for that habit is gone the moment it is deleted.
+
+So the broken link is called out in two places — on the group's card in the
+list, and in the sheet, which offers to point it at another habit. Neither
+silently repairs it: which habit now stands for the group's goal is not a
+guess worth making on somebody's behalf.
 
 ### No leaderboard, deliberately
 

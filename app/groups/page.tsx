@@ -207,6 +207,17 @@ export default function GroupsPage() {
                   const accent = accentOf(group.accent);
                   const now = currentTally(members, progress, group.cadence);
                   const timeline = groupTimeline(members, progress, group.cadence, 14);
+                  // Deleting the linked habit stops this member publishing
+                  // while leaving them in the group, so the count silently
+                  // sticks below the membership. Without a marker here they
+                  // would only find out by opening the group.
+                  const mine = members.find((m) => m.userId === groups.userId);
+                  const linkBroken =
+                    !!mine &&
+                    !habits.some(
+                      (h) =>
+                        h.id === mine.habitId && !h.deletedAt && !h.archivedAt,
+                    );
                   return (
                     <button
                       key={group.id}
@@ -236,6 +247,14 @@ export default function GroupsPage() {
                           </p>
                         </div>
                       </div>
+
+                      {linkBroken && (
+                        <p className="mt-3 rounded-xl border border-highlight/30 bg-highlight/8 px-3 py-2 text-xs font-medium leading-relaxed text-highlight">
+                          You are still in this group but nothing is reaching it
+                          &mdash; the habit it was reading is gone. Open it to
+                          pick another.
+                        </p>
+                      )}
 
                       <div className="mt-3.5 flex items-end gap-1" aria-hidden>
                         {timeline.map((t) => (
