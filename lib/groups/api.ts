@@ -1,0 +1,283 @@
+"use client";
+
+import { getSupabase } from "../supabase/client";
+import type { Cadence } from "../date";
+import type { GroupDetail, GroupMember, PendingInvite, ProgressRow } from "./types";
+import type { PublishRow } from "./progress";
+
+/**
+ * Every call the groups feature makes.
+ *
+ * All of it is network-only and none of it touches the local habit store.
+ * Failures return a message rather than throwing, because a group screen that
+ * cannot load is a normal state, not an error worth interrupting anyone over.
+ */
+
+export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+const ok = <T>(data: T): Result<T> => ({ ok: true, data });
+const fail = (error: string): Result<never> => ({ ok: false, error });
+
+const NOT_CONFIGURED = "Groups need an account. Sign in from Settings first.";
+
+function friendly(message: string): string {
+  if (/not authenticated/i.test(message)) return "Sign in first.";
+  if (/only members can invite/i.test(message)) return "Only members can invite people.";
+  if (/no invitation/i.test(message)) {
+    return "That invitation is no longer available for this account.";
+  }
+  if (/not a member/i.test(message)) return "You are not in this group.";
+  if (/failed to fetch|network/i.test(message)) return "Can't reach the network.";
+  return message;
+}
+
+async function client() {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session ? supabase : null;
+}
+
+export async function listGroups(): Promise<Result<GroupDetail[]>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+
+  try {
+    // RLS already limits this to groups the caller belongs to, so there is no
+    // filter here to get wrong.
+    const { data: groups, error } = await supabase
+      .from("groups")
+      .select("id, name, icon, accent, cadence, target, created_by")
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    if (!groups?.length) return ok([]);
+
+    const ids = groups.map((g) => g.id as string);
+    const [{ data: members, error: mErr }, { data: progress, error: pErr }] =
+      await Promise.all([
+        supabase
+          .from("group_members")
+          .select("group_id, user_id, habit_id, display_name, joined_at")
+          .in("group_id", ids),
+        supabase
+          .from("group_progress")
+          .select("group_id, user_id, period_start, completed")
+          .in("group_id", ids),
+      ]);
+    if (mErr) throw new Error(mErr.message);
+    if (pErr) throw new Error(pErr.message);
+
+    return ok(
+      groups.map((g) => ({
+        group: {
+          id: g.id as string,
+          name: g.name as string,
+          icon: g.icon as string,
+          accent: g.accent as string,
+          cadence: g.cadence as Cadence,
+          target: g.target as number,
+          createdBy: g.created_by as string,
+        },
+        members: (members ?? [])
+          .filter((m) => m.group_id === g.id)
+          .map(
+            (m): GroupMember => ({
+              userId: m.user_id as string,
+              habitId: (m.habit_id as string | null) ?? null,
+              displayName: m.display_name as string,
+              joinedAt: m.joined_at as string,
+            }),
+          ),
+        progress: (progress ?? [])
+          .filter((p) => p.group_id === g.id)
+          .map(
+            (p): ProgressRow => ({
+              userId: p.user_id as string,
+              periodStart: p.period_start as string,
+              completed: p.completed as boolean,
+            }),
+          ),
+      })),
+    );
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not load groups."));
+  }
+}
+
+export async function listInvites(): Promise<Result<PendingInvite[]>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { data, error } = await supabase.rpc("my_pending_invites");
+    if (error) throw new Error(error.message);
+    return ok(
+      (data ?? []).map(
+        (r: Record<string, unknown>): PendingInvite => ({
+          groupId: r.group_id as string,
+          name: r.name as string,
+          icon: r.icon as string,
+          accent: r.accent as string,
+          cadence: r.cadence as Cadence,
+          target: r.target as number,
+          memberCount: Number(r.member_count ?? 0),
+          invitedBy: (r.invited_by as string) ?? "a member",
+          createdAt: r.created_at as string,
+        }),
+      ),
+    );
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not load invitations."));
+  }
+}
+
+export async function createGroup(input: {
+  name: string;
+  icon: string;
+  accent: string;
+  cadence: Cadence;
+  target: number;
+  habitId: string;
+  displayName: string;
+}): Promise<Result<string>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { data, error } = await supabase.rpc("create_group", {
+      p_name: input.name,
+      p_icon: input.icon,
+      p_accent: input.accent,
+      p_cadence: input.cadence,
+      p_target: input.target,
+      p_habit_id: input.habitId,
+      p_display_name: input.displayName,
+    });
+    if (error) throw new Error(error.message);
+    return ok(data as string);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not create the group."));
+  }
+}
+
+/**
+ * Records an invitation. Deliberately reports the same thing whether or not
+ * the address has an account — the server does not tell us, by design, and
+ * inventing a distinction here would undo that.
+ */
+export async function invite(groupId: string, email: string): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase.rpc("invite_to_group", {
+      p_group_id: groupId,
+      p_email: email,
+    });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not send the invitation."));
+  }
+}
+
+export async function acceptInvite(
+  groupId: string,
+  habitId: string,
+  displayName: string,
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase.rpc("accept_group_invite", {
+      p_group_id: groupId,
+      p_habit_id: habitId,
+      p_display_name: displayName,
+    });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not join the group."));
+  }
+}
+
+export async function declineInvite(groupId: string): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    // The policy limits this to invitations addressed to the caller, so there
+    // is nothing to scope here beyond the group.
+    const { error } = await supabase.from("group_invites").delete().eq("group_id", groupId);
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not decline."));
+  }
+}
+
+export async function leaveGroup(groupId: string, userId: string): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not leave the group."));
+  }
+}
+
+export async function publishProgress(
+  groupId: string,
+  rows: PublishRow[],
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  if (!rows.length) return ok(null);
+  try {
+    const { error } = await supabase.rpc("publish_group_progress", {
+      p_group_id: groupId,
+      payload: rows,
+    });
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not publish progress."));
+  }
+}
+
+/** Pending invitations sent by this group, so members can see and revoke them. */
+export async function listSentInvites(groupId: string): Promise<Result<string[]>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { data, error } = await supabase
+      .from("group_invites")
+      .select("email_lower")
+      .eq("group_id", groupId);
+    if (error) throw new Error(error.message);
+    return ok((data ?? []).map((r) => r.email_lower as string));
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not load invitations."));
+  }
+}
+
+export async function revokeInvite(
+  groupId: string,
+  email: string,
+): Promise<Result<null>> {
+  const supabase = await client();
+  if (!supabase) return fail(NOT_CONFIGURED);
+  try {
+    const { error } = await supabase
+      .from("group_invites")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("email_lower", email.toLowerCase());
+    if (error) throw new Error(error.message);
+    return ok(null);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not revoke."));
+  }
+}

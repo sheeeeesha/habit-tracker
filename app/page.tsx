@@ -69,6 +69,12 @@ export default function HomePage() {
   const [deepLinkUsed, setDeepLinkUsed] = useState(false);
   const composerVisible = composerOpen || (deepLinkNew && !deepLinkUsed);
 
+  // Together links here with /?settings=1 when someone needs to sign in,
+  // since that is the only place sign-in lives.
+  const deepLinkSettings = useUrlFlag("settings");
+  const [settingsLinkUsed, setSettingsLinkUsed] = useState(false);
+  const menuVisible = menuOpen || (deepLinkSettings && !settingsLinkUsed);
+
   const active = useMemo(() => habits.filter(isActive), [habits]);
 
   const summary = useMemo(
@@ -259,6 +265,30 @@ export default function HomePage() {
             </ul>
           )}
 
+          {/* Together ---------------------------------------------------- */}
+          {active.length > 0 && (
+            <Link
+              href="/groups"
+              className="card mt-6 flex items-center justify-between gap-4 p-4 transition hover:bg-white/8 active:scale-[0.99] sm:p-5"
+            >
+              <span>
+                <span className="block text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-bone/40">
+                  Better with company
+                </span>
+                <span className="mt-1 block text-lg font-bold leading-tight">Together</span>
+                <span className="mt-0.5 block text-sm text-bone/50">
+                  Share a goal. Everyone still tracks their own.
+                </span>
+              </span>
+              <span
+                aria-hidden
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-bone"
+              >
+                <ArrowRight size={18} weight={ICON_WEIGHT} />
+              </span>
+            </Link>
+          )}
+
           {/* Insights ---------------------------------------------------- */}
           {active.length > 0 && (
             <Link
@@ -352,7 +382,14 @@ export default function HomePage() {
           setEditing(h);
         }}
       />
-      <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MenuSheet
+        open={menuVisible}
+        onClose={() => {
+          setMenuOpen(false);
+          setSettingsLinkUsed(true);
+          clearUrlFlag("settings");
+        }}
+      />
     </>
   );
 }

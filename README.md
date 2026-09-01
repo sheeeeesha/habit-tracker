@@ -177,6 +177,60 @@ back.
 
 ---
 
+## Together (shared habits)
+
+A group is one goal that several people track **separately**. Nobody edits
+anybody else's data, and that constraint is what keeps this cheap and safe
+rather than a rewrite.
+
+Run [`supabase/migrations/0002_groups.sql`](supabase/migrations/0002_groups.sql)
+alongside the first migration to enable it.
+
+### How it fits
+
+`habits` and `checkins` are **not touched** — not their columns, not their
+policies. A group does not own a habit; it holds a pointer to a habit each
+member already owns in their own account. Joining a group creates an ordinary
+habit in your account that you check off exactly like any other. So the tables
+holding everyone's real history keep the single-owner RLS they always had, and
+a bug in the groups code cannot reach them. There is a test asserting exactly
+that.
+
+The group read-model lives in React state and is **never persisted**. Offline,
+the Together page is empty and the rest of the app is untouched — check-ins,
+streaks and Wrapped all work as they always did. A social feature must never be
+able to block a check-in.
+
+### What members can see
+
+One thing: whether you completed the shared goal in each period. Not your other
+habits, not your check-in times, not your counts. Each member computes their own
+per-period completion locally and publishes that; nobody ever reads anyone
+else's raw check-ins.
+
+### Invitations
+
+Invites are addressed to an **email**, never to a user, and nothing in the
+schema ever looks an address up. `invite_to_group` returns the same nothing
+whether the address has an account, has already been invited, or is already a
+member — otherwise the invite box becomes a way to test whether somebody has
+signed up.
+
+Accepting is authorised by the **verified address in the caller's own token**.
+Knowing a group id is not enough, and neither is an invitation addressed to
+somebody else; both are tested. Nothing is shared until the invitee accepts, so
+being invited leaks nothing about you to the group.
+
+### No leaderboard, deliberately
+
+The group view shows *how many of us showed up*, never a ranking. Social
+visibility sharpens the abstinence violation effect: rank people by streak and
+whoever slips is publicly last, which is the moment they leave. Members appear
+in join order, each with their own rate, and `memberStandings` returns them that
+way so no component can quietly sort by performance.
+
+---
+
 ## Insights
 
 `/insights` is built from findings rather than from what other habit
