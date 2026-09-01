@@ -45,6 +45,8 @@ export interface Prefs {
   /** Lets the user re-summon the CTA from the menu after dismissing it. */
   installRequested: boolean;
   reduceMotion: boolean;
+  /** Show the number of outstanding habits on the installed app's icon. */
+  iconBadge: boolean;
 }
 
 export interface SyncState {

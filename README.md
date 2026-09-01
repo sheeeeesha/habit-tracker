@@ -68,6 +68,26 @@ npm run build && npm start
 `npm test` runs the merge and schema tests, `npm run lint` runs ESLint, and
 TypeScript is checked as part of `build`.
 
+### About widgets
+
+There is no home-screen or lock-screen widget, and there cannot be one. Widgets
+are native extensions — WidgetKit on iOS, App Widgets on Android — and no web
+API exposes them on either platform. The `widgets` member some manifests carry
+targets the Windows 11 widgets board, not a phone home screen.
+
+The closest thing a website can do is badge its own installed icon, which
+Settings ▸ *Count on the app icon* turns on. It shows how many habits are still
+due, so a clear icon means a clear day. Platform behaviour differs and is worth
+knowing before relying on it:
+
+- **iOS 16.4+** shows the number, but only for a web app added to the home
+  screen, and only after notification permission is granted — even though
+  nothing is ever notified.
+- **Android Chrome** shows a dot, not the number.
+- **Desktop Chrome and Edge** show the number.
+
+A real widget would mean shipping a native app.
+
 ### Testing the install prompt
 
 `beforeinstallprompt` only fires over HTTPS or on `localhost`, in a Chromium

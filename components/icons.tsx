@@ -21,6 +21,7 @@ import { Export } from "@phosphor-icons/react/dist/ssr/Export";
 import { Fire } from "@phosphor-icons/react/dist/ssr/Fire";
 import { Plus } from "@phosphor-icons/react/dist/ssr/Plus";
 import { PlusSquare } from "@phosphor-icons/react/dist/ssr/PlusSquare";
+import { UsersThree } from "@phosphor-icons/react/dist/ssr/UsersThree";
 import { X } from "@phosphor-icons/react/dist/ssr/X";
 
 export {
@@ -33,6 +34,7 @@ export {
   Fire,
   Plus,
   PlusSquare,
+  UsersThree,
   X,
 };
 

@@ -11,6 +11,7 @@ import {
   Fire,
   ICON_WEIGHT,
   Plus,
+  UsersThree,
 } from "@/components/icons";
 import { HabitCard } from "@/components/HabitCard";
 import { HabitDetailSheet } from "@/components/HabitDetailSheet";
@@ -21,7 +22,8 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { prettyDate, today } from "@/lib/date";
 import { STARTER_HABITS, streakNoun } from "@/lib/habits";
 import type { AccentKey } from "@/lib/palette";
-import { isOnDutyToday, periodProgress, todaySummary } from "@/lib/streak";
+import { isDueNow, isOnDutyToday, periodProgress, todaySummary } from "@/lib/streak";
+import { useAppBadge } from "@/lib/useAppBadge";
 import { useStore } from "@/lib/store";
 import { clearUrlFlag, useUrlFlag } from "@/lib/useUrlFlag";
 import { isActive, type Habit, type HabitDraft } from "@/lib/types";
@@ -97,6 +99,15 @@ export default function HomePage() {
     });
   }, [active, filter, state.log]);
 
+  // The badge counts what is still outstanding, so a cleared icon means a
+  // cleared day. Nothing happens unless the app is installed and the toggle
+  // in Settings is on.
+  const outstanding = useMemo(
+    () => active.filter((h) => isDueNow(h, state.log)).length,
+    [active, state.log],
+  );
+  useAppBadge(outstanding, state.prefs.iconBadge);
+
   const allDone = summary.total > 0 && summary.done === summary.total;
   const heroColor = allDone ? "#C7F94E" : "#FF2E88";
 
@@ -138,14 +149,23 @@ export default function HomePage() {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Settings"
-            className="tap-target grid place-items-center rounded-full text-bone/55 transition hover:bg-white/10 hover:text-bone active:scale-90"
-          >
-            <DotsThreeVertical size={22} weight="fill" aria-hidden />
-          </button>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/groups"
+              aria-label="Together — shared habits"
+              className="tap-target grid place-items-center rounded-full text-bone/55 transition hover:bg-white/10 hover:text-bone active:scale-90"
+            >
+              <UsersThree size={22} weight={ICON_WEIGHT} aria-hidden />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Settings"
+              className="tap-target grid place-items-center rounded-full text-bone/55 transition hover:bg-white/10 hover:text-bone active:scale-90"
+            >
+              <DotsThreeVertical size={22} weight="fill" aria-hidden />
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 pb-32">
@@ -263,30 +283,6 @@ export default function HomePage() {
                 <HabitCard key={h.id} habit={h} index={i} onOpen={setDetail} />
               ))}
             </ul>
-          )}
-
-          {/* Together ---------------------------------------------------- */}
-          {active.length > 0 && (
-            <Link
-              href="/groups"
-              className="card mt-6 flex items-center justify-between gap-4 p-4 transition hover:bg-white/8 active:scale-[0.99] sm:p-5"
-            >
-              <span>
-                <span className="block text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-bone/40">
-                  Better with company
-                </span>
-                <span className="mt-1 block text-lg font-bold leading-tight">Together</span>
-                <span className="mt-0.5 block text-sm text-bone/50">
-                  Share a goal. Everyone still tracks their own.
-                </span>
-              </span>
-              <span
-                aria-hidden
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-bone"
-              >
-                <ArrowRight size={18} weight={ICON_WEIGHT} />
-              </span>
-            </Link>
           )}
 
           {/* Insights ---------------------------------------------------- */}

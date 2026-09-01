@@ -7,6 +7,7 @@ import { useInstall } from "@/lib/useInstall";
 import { HabitTile } from "./HabitGlyph";
 import { describeCadence } from "@/lib/habits";
 import { formatBytes, useStorageStatus } from "@/lib/persistence";
+import { badgingSupported, requestBadgePermission } from "@/lib/useAppBadge";
 import { SyncSection } from "./SyncSection";
 
 interface MenuSheetProps {
@@ -72,6 +73,29 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [importNote, setImportNote] = useState("");
   const { status: storage, request: requestStorage } = useStorageStatus();
+  const [badgeNote, setBadgeNote] = useState<string | null>(null);
+
+  /**
+   * iOS only shows the badge once notification permission is granted, even
+   * though nothing is ever notified, and the ask has to come from a gesture —
+   * so it happens here, on the toggle, rather than on load.
+   */
+  async function toggleBadge(on: boolean) {
+    setBadgeNote(null);
+    if (!on) {
+      setPrefs({ iconBadge: false });
+      return;
+    }
+    const allowed = await requestBadgePermission();
+    setPrefs({ iconBadge: allowed });
+    if (!allowed) {
+      setBadgeNote(
+        "Your browser refused notification permission, which is what iOS uses to gate the badge.",
+      );
+    } else if (!install.isStandalone) {
+      setBadgeNote("Add the app to your home screen to see it — a browser tab has no icon to badge.");
+    }
+  }
 
   const archived = habits.filter((h) => h.archivedAt);
   // Once history is mirrored to an account, "no server" stops being true and
@@ -155,6 +179,23 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
               )
             }
           />
+
+          {badgingSupported() && (
+            <Row
+              title="Count on the app icon"
+              subtitle={
+                badgeNote ??
+                "Shows how many habits are still due, on the installed icon. Web apps cannot make home screen widgets; this is the closest thing there is."
+              }
+              action={
+                <Toggle
+                  checked={state.prefs.iconBadge}
+                  onChange={(v) => void toggleBadge(v)}
+                  label="Count on the app icon"
+                />
+              }
+            />
+          )}
 
           <Row
             title="Reduce motion"
