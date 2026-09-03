@@ -211,3 +211,30 @@ export function todaySummary(habits: Habit[], log: CompletionLog) {
     topHabit,
   };
 }
+
+/**
+ * Daily habits that were due yesterday and never got checked off.
+ *
+ * Deliberately daily-only. A weekly or monthly habit's period is still open
+ * today, so there is nothing to backfill — checking in normally already
+ * counts toward it. Offering to "log yesterday" for those would imply the
+ * period had closed when it has not.
+ */
+export function missedYesterday(habits: Habit[], log: CompletionLog): Habit[] {
+  const y = addDays(today(), -1);
+  const key = dateKey(y);
+  return habits.filter((habit) => {
+    if (habit.cadence !== "daily") return false;
+    if (!isActive(habit)) return false;
+    if (key < habit.startDate) return false;
+    if (!isScheduledOn(habit, y)) return false;
+    return countOn(log, habit.id, key) < habit.target;
+  });
+}
+
+/** What one habit currently shows for yesterday. */
+export function yesterdayProgress(habit: Habit, log: CompletionLog) {
+  const key = dateKey(addDays(today(), -1));
+  const done = countOn(log, habit.id, key);
+  return { key, done, target: habit.target, complete: done >= habit.target };
+}

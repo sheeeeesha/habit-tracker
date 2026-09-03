@@ -19,6 +19,7 @@ const DEFAULT_PREFS: Prefs = {
   installRequested: false,
   reduceMotion: false,
   iconBadge: false,
+  backfillDismissedOn: "",
 };
 
 const DEFAULT_SYNC: SyncState = {

@@ -13,6 +13,7 @@
  */
 
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr/ArrowRight";
+import { CalendarX } from "@phosphor-icons/react/dist/ssr/CalendarX";
 import { CaretLeft } from "@phosphor-icons/react/dist/ssr/CaretLeft";
 import { CaretRight } from "@phosphor-icons/react/dist/ssr/CaretRight";
 import { Check } from "@phosphor-icons/react/dist/ssr/Check";
@@ -26,6 +27,7 @@ import { X } from "@phosphor-icons/react/dist/ssr/X";
 
 export {
   ArrowRight,
+  CalendarX,
   CaretLeft,
   CaretRight,
   Check,

@@ -9,20 +9,29 @@ import {
   Check,
   DotsThreeVertical,
   Fire,
+  CalendarX,
   ICON_WEIGHT,
   Plus,
   UsersThree,
+  X,
 } from "@/components/icons";
 import { HabitCard } from "@/components/HabitCard";
 import { HabitDetailSheet } from "@/components/HabitDetailSheet";
 import { HabitSheet } from "@/components/HabitSheet";
 import { InstallCTA } from "@/components/InstallCTA";
 import { MenuSheet } from "@/components/MenuSheet";
+import { YesterdaySheet } from "@/components/YesterdaySheet";
 import { ProgressRing } from "@/components/ProgressRing";
-import { prettyDate, today } from "@/lib/date";
+import { dateKey, prettyDate, today } from "@/lib/date";
 import { STARTER_HABITS, streakNoun } from "@/lib/habits";
 import type { AccentKey } from "@/lib/palette";
-import { isDueNow, isOnDutyToday, periodProgress, todaySummary } from "@/lib/streak";
+import {
+  isDueNow,
+  isOnDutyToday,
+  missedYesterday,
+  periodProgress,
+  todaySummary,
+} from "@/lib/streak";
 import { useAppBadge } from "@/lib/useAppBadge";
 import { useStore } from "@/lib/store";
 import { clearUrlFlag, useUrlFlag } from "@/lib/useUrlFlag";
@@ -57,9 +66,10 @@ function greeting(): string {
 }
 
 export default function HomePage() {
-  const { state, habits, hydrated, suggestAccent } = useStore();
+  const { state, habits, hydrated, setPrefs, suggestAccent } = useStore();
   const [filter, setFilter] = useState<Filter>("today");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [yesterdayOpen, setYesterdayOpen] = useState(false);
   const [editing, setEditing] = useState<Habit | null>(null);
   const [detail, setDetail] = useState<Habit | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -98,6 +108,15 @@ export default function HomePage() {
       return a.createdAt - b.createdAt;
     });
   }, [active, filter, state.log]);
+
+  // Anything daily that went unticked yesterday. Dismissal is scoped to the
+  // day, so declining it this morning does not hide it tomorrow.
+  const missed = useMemo(
+    () => missedYesterday(active, state.log),
+    [active, state.log],
+  );
+  const backfillDismissed =
+    state.prefs.backfillDismissedOn === dateKey(today());
 
   // The badge counts what is still outstanding, so a cleared icon means a
   // cleared day. Nothing happens unless the app is installed and the toggle
@@ -239,6 +258,41 @@ export default function HomePage() {
             </section>
           )}
 
+          {/* Backfill ---------------------------------------------------- */}
+          {missed.length > 0 && !backfillDismissed && (
+            <section className="card mb-4 flex items-center gap-3 p-4 animate-rise">
+              <span
+                aria-hidden
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-highlight/15 text-lg"
+              >
+                <CalendarX size={20} weight={ICON_WEIGHT} color="#FFD93D" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.9375rem] font-semibold text-bone">
+                  {missed.length} unticked yesterday
+                </span>
+                <span className="block text-xs text-bone/50">
+                  Did any of them anyway? Log it and the streak holds.
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setYesterdayOpen(true)}
+                className="shrink-0 rounded-full bg-highlight px-4 py-2 text-xs font-bold text-[#1C1400] transition active:scale-95"
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrefs({ backfillDismissedOn: dateKey(today()) })}
+                aria-label="Dismiss until tomorrow"
+                className="tap-target -mr-2 grid shrink-0 place-items-center rounded-full text-bone/35 transition hover:bg-white/10 hover:text-bone"
+              >
+                <X size={16} weight={ICON_WEIGHT} aria-hidden />
+              </button>
+            </section>
+          )}
+
           <InstallCTA />
 
           {/* Filters --------------------------------------------------- */}
@@ -377,6 +431,11 @@ export default function HomePage() {
           setDetail(null);
           setEditing(h);
         }}
+      />
+      <YesterdaySheet
+        open={yesterdayOpen}
+        habits={missed}
+        onClose={() => setYesterdayOpen(false)}
       />
       <MenuSheet
         open={menuVisible}

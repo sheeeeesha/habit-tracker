@@ -47,6 +47,11 @@ export interface Prefs {
   reduceMotion: boolean;
   /** Show the number of outstanding habits on the installed app's icon. */
   iconBadge: boolean;
+  /**
+   * Local date key the "you missed yesterday" prompt was last dismissed on.
+   * Scoped to a day so declining it once does not hide it forever.
+   */
+  backfillDismissedOn: string;
 }
 
 export interface SyncState {
