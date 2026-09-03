@@ -10,7 +10,7 @@ import { GroupEditSheet } from "@/components/groups/GroupEditSheet";
 import { GroupDetailSheet } from "@/components/groups/GroupDetailSheet";
 import { InviteLanding } from "@/components/groups/InviteLanding";
 import { useGroups } from "@/lib/groups/useGroups";
-import { currentTally, groupTimeline } from "@/lib/groups/progress";
+import { currentTally, groupTimeline, linkState } from "@/lib/groups/progress";
 import type { GroupDetail, PendingInvite } from "@/lib/groups/types";
 import { accentOf } from "@/lib/palette";
 import { useStore } from "@/lib/store";
@@ -208,16 +208,18 @@ export default function GroupsPage() {
                   const now = currentTally(members, progress, group.cadence);
                   const timeline = groupTimeline(members, progress, group.cadence, 14);
                   // Deleting the linked habit stops this member publishing
-                  // while leaving them in the group, so the count silently
-                  // sticks below the membership. Without a marker here they
-                  // would only find out by opening the group.
+                  // while leaving them in the group. Without a marker here
+                  // they would only find out by opening the group.
+                  //
+                  // Quiet when the habit is merely absent from this device,
+                  // which usually means it has not synced here yet rather than
+                  // that anything is wrong. The sheet explains that case.
                   const mine = members.find((m) => m.userId === groups.userId);
+                  const link = mine ? linkState(mine.habitId, habits) : null;
                   const linkBroken =
-                    !!mine &&
-                    !habits.some(
-                      (h) =>
-                        h.id === mine.habitId && !h.deletedAt && !h.archivedAt,
-                    );
+                    link?.kind === "deleted" ||
+                    link?.kind === "archived" ||
+                    link?.kind === "unlinked";
                   return (
                     <button
                       key={group.id}
@@ -250,9 +252,14 @@ export default function GroupsPage() {
 
                       {linkBroken && (
                         <p className="mt-3 rounded-xl border border-highlight/30 bg-highlight/8 px-3 py-2 text-xs font-medium leading-relaxed text-highlight">
-                          You are still in this group but nothing is reaching it
-                          &mdash; the habit it was reading is gone. Open it to
-                          pick another.
+                          You are still in this group but nothing is reaching
+                          it &mdash;{" "}
+                          {link?.kind === "archived"
+                            ? "the habit it was reading is archived"
+                            : link?.kind === "deleted"
+                              ? "the habit it was reading was deleted"
+                              : "it is not reading any of your habits"}
+                          . Open it to pick another.
                         </p>
                       )}
 

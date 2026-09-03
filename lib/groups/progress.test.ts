@@ -4,6 +4,7 @@ import {
   currentTally,
   groupNote,
   groupTimeline,
+  linkState,
   memberStandings,
   myProgressRows,
   recentPeriods,
@@ -175,5 +176,127 @@ describe("groupNote", () => {
   it("has nothing to say when the group has genuinely gone quiet", () => {
     const quiet = Array.from({ length: 8 }, () => tally(0, 3));
     assert.equal(groupNote([...quiet, tally(0, 3, true)]), null);
+  });
+});
+
+/**
+ * What happens to a group when a member's habit goes away.
+ *
+ * The failure this covers is quiet rather than loud: the member stops
+ * publishing but stays on the roster, so the count sticks permanently below
+ * the membership and "everyone showed up" becomes unreachable. Nothing throws;
+ * the group just looks like it is failing.
+ */
+describe("linkState", () => {
+  it("reads a live habit as tracking", () => {
+    const h = habit({ id: "h1" });
+    const state = linkState("h1", [h]);
+    assert.equal(state.kind, "tracking");
+  });
+
+  it("reads a tombstone as deleted", () => {
+    const state = linkState("h1", [habit({ id: "h1", deletedAt: 123 })]);
+    assert.equal(state.kind, "deleted");
+    assert.equal(state.kind === "deleted" && state.habitId, "h1");
+  });
+
+  it("reads an archived habit as archived, not deleted", () => {
+    // The two are treated differently on the wire: one erases the group's
+    // copy of the history, the other keeps it for when the habit comes back.
+    const state = linkState("h1", [habit({ id: "h1", archivedAt: 123 })]);
+    assert.equal(state.kind, "archived");
+  });
+
+  it("prefers deleted when a habit is both archived and deleted", () => {
+    const state = linkState("h1", [
+      habit({ id: "h1", archivedAt: 1, deletedAt: 2 }),
+    ]);
+    assert.equal(state.kind, "deleted");
+  });
+
+  it("reads an ABSENT habit as unknown, never as deleted", () => {
+    // This is the one that would do damage. A second device that has not
+    // pulled this habit yet also sees nothing — and "deleted" erases the
+    // group's published history. Absence is not evidence.
+    const state = linkState("h1", []);
+    assert.equal(state.kind, "unknown");
+  });
+
+  it("reads a cleared link as unlinked", () => {
+    assert.equal(linkState(null, []).kind, "unlinked");
+  });
+});
+
+describe("a member who is no longer tracking", () => {
+  const joined = "2026-01-01T00:00:00Z";
+  const linked = (id: string): GroupMember => member(id, joined);
+  const unlinked = (id: string): GroupMember => ({ ...member(id, joined), habitId: null });
+
+  it("leaves the denominator, so the group can be whole again", () => {
+    // Two of three published today; the third deleted their habit. Counting
+    // them keeps this group at 2/3 forever, however well the others do.
+    const members = [linked("a"), linked("b"), unlinked("c")];
+    const progress: ProgressRow[] = [
+      { userId: "a", periodStart: day(0), completed: true },
+      { userId: "b", periodStart: day(0), completed: true },
+    ];
+    const now = currentTally(members, progress, "daily");
+    assert.equal(now.members, 2);
+    assert.equal(now.completed, 2);
+    assert.equal(now.ratio, 1);
+  });
+
+  it("stops dragging down 'everyone showed up'", () => {
+    const members = [linked("a"), unlinked("c")];
+    const progress: ProgressRow[] = Array.from({ length: 5 }, (_, i) => ({
+      userId: "a",
+      periodStart: day(i - 5),
+      completed: true,
+    }));
+    const timeline = groupTimeline(members, progress, "daily", 6);
+    assert.equal(groupNote(timeline), "Everyone has shown up every period so far.");
+  });
+
+  it("does not count leftover rows from someone who has unlinked", () => {
+    // Archiving keeps the published rows on the server on purpose. They must
+    // not go on counting while the habit is put away.
+    const members = [linked("a"), unlinked("c")];
+    const progress: ProgressRow[] = [
+      { userId: "a", periodStart: day(0), completed: true },
+      { userId: "c", periodStart: day(0), completed: true },
+    ];
+    const now = currentTally(members, progress, "daily");
+    assert.equal(now.completed, 1, "a stale row was still counted");
+    assert.equal(now.members, 1);
+  });
+
+  it("stays on the member list, marked as not tracking", () => {
+    // Still in the group, and can relink. Dropping them from the list would
+    // read as having been removed.
+    const standings = memberStandings(
+      [linked("a"), unlinked("c")],
+      [{ userId: "a", periodStart: day(0), completed: true }],
+      "daily",
+    );
+    assert.equal(standings.length, 2);
+    assert.equal(standings.find((s) => s.member.userId === "a")?.tracking, true);
+    assert.equal(standings.find((s) => s.member.userId === "c")?.tracking, false);
+  });
+
+  it("counts again as soon as they relink", () => {
+    const members = [linked("a"), linked("c")];
+    const progress: ProgressRow[] = [
+      { userId: "a", periodStart: day(0), completed: true },
+      { userId: "c", periodStart: day(0), completed: true },
+    ];
+    const now = currentTally(members, progress, "daily");
+    assert.equal(now.members, 2);
+    assert.equal(now.completed, 2);
+  });
+
+  it("reports 0 of 0 rather than dividing by zero", () => {
+    const now = currentTally([unlinked("a")], [], "daily");
+    assert.equal(now.members, 0);
+    assert.equal(now.ratio, 0);
   });
 });

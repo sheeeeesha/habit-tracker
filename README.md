@@ -291,16 +291,56 @@ is a different group.
 Deleting a group removes it for everyone and touches nobody's habit or history.
 Those belong to the individuals and always did — there is a test for it.
 
-If the habit a member linked gets deleted or archived, they stop publishing but
-stay in the group. That combination is worse than it sounds: they remain in the
-denominator, so the group's count sticks permanently below its membership,
-their previously published rows linger until the window slides past them, and
-the local check-in history for that habit is gone the moment it is deleted.
+#### When the linked habit goes away
 
-So the broken link is called out in two places — on the group's card in the
-list, and in the sheet, which offers to point it at another habit. Neither
-silently repairs it: which habit now stands for the group's goal is not a
-guess worth making on somebody's behalf.
+A member can delete or archive the habit their group reads, like any other.
+They stop publishing — but they used to stay in the denominator, so the group's
+count stuck permanently below its membership and *everyone showed up* became
+unreachable no matter how well anybody did. Their old rows sat on the server
+with nothing able to correct them.
+
+`habit_id` on the membership row now carries one meaning, and it is the only
+part of this the other members can see: **I am currently tracking this.** It is
+cleared when the habit goes away, which is what takes somebody out of the
+denominator. They stay on the member list, marked as not tracking, because they
+are still in the group and can point it at another habit.
+
+Deleting and archiving part company over the published rows:
+
+- **Deleted** — the rows are erased too. The local check-in history went with
+  the habit, so the group's copy could never be corrected again, and leaving it
+  would blend two habits' histories under one name if the member later linked a
+  different one.
+- **Archived** — the rows stay. It is a pause, and restoring the habit brings
+  the history back intact. Publishing an archived habit would be worse than
+  going quiet: `periodHistory` runs to today regardless, so it would post a
+  *miss* for every period since it was put away.
+
+This happens at the moment of deletion, not awaited — deleting a habit is a
+local act that must not wait on, or fail with, the network — and it is
+reconciled again whenever the groups screen loads, which catches the offline
+case and a deletion made on another device.
+
+**An absent habit is not a deleted one.** The store keeps tombstones, so a
+deletion is provable; a habit that is merely missing from this device is very
+often one that has not synced here yet. Acting on that absence would let a
+phone that just signed in erase a group history it has never seen, so the
+unsure case says so plainly and changes nothing — and it is the one case where
+the sheet does not offer to relink, because taking that offer would detach a
+link that was fine.
+
+Detaching is two ordinary statements rather than a function of its own: the
+existing policies already permit exactly it and nothing more. That is a claim
+about the policies, so the schema tests check both halves — that a member can
+clear their own link and erase their own rows, and that the same statements
+aimed at somebody else do nothing. The erase runs *before* the unlink, so a
+failure leaves the link set and the next refresh retries; the other order would
+throw away the only marker saying there is anything left to clean up.
+
+The broken link is called out on the group's card in the list and in the sheet,
+which offers to point it at another habit. Neither silently repairs it: which
+habit now stands for the group's goal is not a guess worth making on somebody's
+behalf.
 
 ### No leaderboard, deliberately
 

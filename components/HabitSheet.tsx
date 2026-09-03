@@ -17,6 +17,7 @@ import {
   TIME_OF_DAY_LABEL,
 } from "@/lib/habits";
 import { useStore } from "@/lib/store";
+import { unlinkHabit } from "@/lib/groups/api";
 import type { Cadence, Habit, HabitDraft, TimeOfDay } from "@/lib/types";
 
 interface HabitSheetProps {
@@ -146,6 +147,13 @@ export function HabitSheet({ open, onClose, habit, seed }: HabitSheetProps) {
                   return;
                 }
                 deleteHabit(habit.id);
+                // A group reading this habit would otherwise keep counting
+                // this member and never hear from them again. Best effort and
+                // deliberately not awaited: deleting a habit is a local act
+                // that must not wait on, or fail with, the network. If it does
+                // not land — offline, or deleted on another device — the
+                // groups screen reconciles it the next time it loads.
+                void unlinkHabit(habit.id, { erasePublished: true });
                 onClose();
               }}
               className="w-full rounded-2xl px-5 py-3 text-sm font-semibold text-bone/50 transition hover:bg-white/5 hover:text-hyperpink"

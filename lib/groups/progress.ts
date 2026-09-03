@@ -13,6 +13,40 @@ import type { GroupMember, ProgressRow } from "./types";
  * `groupTimeline` for why.
  */
 
+/**
+ * Whether a member is actually tracking this group's habit right now.
+ *
+ * `habit_id` on the membership row is the only part of this the *other*
+ * members can see, so it has to mean exactly one thing: "I am currently
+ * tracking this." Everything below decides when to clear it.
+ *
+ * The distinction that matters is `deleted` versus `unknown`. A tombstone is
+ * proof the habit was deleted — the store keeps deleted habits around so the
+ * deletion can reach other devices. A habit that is simply *absent* proves
+ * nothing: this may be a second device that has not pulled it yet. Acting on
+ * an absence would let a phone that just signed in erase a group history it
+ * has never seen.
+ */
+export type LinkState =
+  | { kind: "tracking"; habit: Habit }
+  /** Paused, and restorable — so the published history is left alone. */
+  | { kind: "archived"; habit: Habit }
+  /** Gone for good, along with its local history. */
+  | { kind: "deleted"; habitId: string }
+  /** Already detached; nothing to do. */
+  | { kind: "unlinked" }
+  /** Not on this device. Could be anything, so say nothing. */
+  | { kind: "unknown" };
+
+export function linkState(habitId: string | null, habits: Habit[]): LinkState {
+  if (!habitId) return { kind: "unlinked" };
+  const habit = habits.find((h) => h.id === habitId);
+  if (!habit) return { kind: "unknown" };
+  if (habit.deletedAt) return { kind: "deleted", habitId };
+  if (habit.archivedAt) return { kind: "archived", habit };
+  return { kind: "tracking", habit };
+}
+
 /** How many periods of history a member publishes on each refresh. */
 export const PUBLISH_WINDOW = 30;
 
@@ -79,9 +113,15 @@ export function groupTimeline(
     set.add(row.userId);
   }
 
-  // Counted against current membership, so someone who has left does not
-  // linger in the denominator or inflate a past period.
-  const present = new Set(members.map((m) => m.userId));
+  // Counted against who is *currently tracking*, not who is on the roster.
+  // Somebody who has left, or whose habit is gone, would otherwise sit in the
+  // denominator forever and put "everyone showed up" permanently out of
+  // reach — which is exactly the note a group most wants to earn.
+  //
+  // Applied to past periods too, for the same reason it always was: per-period
+  // membership is not recorded, so the choice is this or letting a departed
+  // member inflate a period they are no longer part of.
+  const present = new Set(members.filter((m) => m.habitId).map((m) => m.userId));
 
   return periods.map((p) => {
     const done = [...(byPeriod.get(p) ?? [])].filter((id) => present.has(id)).length;
@@ -102,6 +142,11 @@ export interface MemberStanding {
   /** Whether they have completed the period in progress. */
   doneThisPeriod: boolean;
   published: number;
+  /**
+   * Whether they are still linked to a habit. Someone who is not stays on the
+   * list — they are in the group — but is not counted against it.
+   */
+  tracking: boolean;
 }
 
 /**
@@ -141,6 +186,7 @@ export function memberStandings(
           (r) => r.periodStart.slice(0, 10) === current && r.completed,
         ),
         published: rows.length,
+        tracking: !!member.habitId,
       };
     });
 }

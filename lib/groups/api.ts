@@ -49,6 +49,14 @@ async function client() {
   return data.session ? supabase : null;
 }
 
+/** As `client`, for the calls that also need to name the caller's own rows. */
+async function clientAsUser() {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session ? { supabase, userId: data.session.user.id } : null;
+}
+
 /**
  * What a group looks like to somebody following a shared link.
  *
@@ -400,5 +408,68 @@ export async function revokeInvite(
     return ok(null);
   } catch (e) {
     return fail(friendly(e instanceof Error ? e.message : "Could not revoke."));
+  }
+}
+
+/**
+ * Detaches a habit from every group of the caller's that was reading it.
+ *
+ * Deleting a habit used to leave the group holding a pointer to nothing: the
+ * member stopped publishing but stayed in the count, so the group could never
+ * reach "everyone showed up" again and nobody was told why. Clearing the link
+ * is what takes them out of the denominator — `habit_id` is the only part of
+ * this the other members can see.
+ *
+ * `erasePublished` is the difference between deleting a habit and archiving
+ * one. A deletion takes the local history with it, so leaving the group's copy
+ * behind would strand rows that can never be corrected, and would blend two
+ * habits' histories under one name if the member later linked a different one.
+ * Archiving is a pause, so those rows stay and come back intact on relinking.
+ *
+ * The erase happens before the unlink, deliberately. If it fails, the link is
+ * still set and the next refresh tries the whole thing again; the other order
+ * would lose the only marker saying there is anything left to clean up.
+ *
+ * Scoped to the caller's own rows on every statement, and both policies
+ * already allow exactly this — `for all` on progress, and "members maintain
+ * their own row" for the link — so it needs no function of its own.
+ */
+export async function unlinkHabit(
+  habitId: string,
+  opts: { erasePublished: boolean },
+): Promise<Result<number>> {
+  const session = await clientAsUser();
+  if (!session) return fail(NOT_CONFIGURED);
+  const { supabase, userId } = session;
+
+  try {
+    const { data: rows, error } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("user_id", userId)
+      .eq("habit_id", habitId);
+    if (error) throw new Error(error.message);
+    if (!rows?.length) return ok(0);
+
+    for (const row of rows) {
+      const groupId = row.group_id as string;
+      if (opts.erasePublished) {
+        const { error: pErr } = await supabase
+          .from("group_progress")
+          .delete()
+          .eq("group_id", groupId)
+          .eq("user_id", userId);
+        if (pErr) throw new Error(pErr.message);
+      }
+      const { error: mErr } = await supabase
+        .from("group_members")
+        .update({ habit_id: null })
+        .eq("group_id", groupId)
+        .eq("user_id", userId);
+      if (mErr) throw new Error(mErr.message);
+    }
+    return ok(rows.length);
+  } catch (e) {
+    return fail(friendly(e instanceof Error ? e.message : "Could not detach that habit."));
   }
 }

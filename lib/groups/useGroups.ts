@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import * as api from "./api";
-import { myProgressRows } from "./progress";
+import { linkState, myProgressRows } from "./progress";
 import { addHabit, readState } from "../store";
 import { emptyDraft } from "../habits";
 import { getSupabase, isSyncConfigured } from "../supabase/client";
@@ -115,12 +115,37 @@ export function useGroups(): GroupsView {
           });
         }
 
-        if (!me.habitId) return;
-        const habit = state.habits.find((h) => h.id === me.habitId && !h.deletedAt);
-        // A deleted habit stops publishing rather than publishing zeroes. The
-        // detail sheet spots the dangling link and offers to repair it.
-        if (!habit) return;
-        await api.publishProgress(detail.group.id, myProgressRows(habit, state.log));
+        // Reconciles the link as well as publishing, because the habit a
+        // group reads can be deleted or archived from anywhere, including a
+        // device that is not this one.
+        //
+        // `unlinkHabit` is keyed by habit rather than by group, so one call
+        // settles every group reading that habit and a second is a harmless
+        // no-op. Worth knowing before adding a guard that is not needed.
+        const link = linkState(me.habitId, state.habits);
+        switch (link.kind) {
+          case "tracking":
+            await api.publishProgress(
+              detail.group.id,
+              myProgressRows(link.habit, state.log),
+            );
+            return;
+          case "deleted":
+            // Takes the published rows with it: the local history is gone, so
+            // the group's copy could never be corrected again.
+            await api.unlinkHabit(link.habitId, { erasePublished: true });
+            return;
+          case "archived":
+            // A pause, not an ending. The rows stay, and relinking brings the
+            // history back intact. Publishing an archived habit would post a
+            // miss for every period since it was put away.
+            await api.unlinkHabit(link.habit.id, { erasePublished: false });
+            return;
+          case "unlinked":
+          case "unknown":
+            // Nothing to publish, and nothing this device can be sure of.
+            return;
+        }
       }),
     );
 

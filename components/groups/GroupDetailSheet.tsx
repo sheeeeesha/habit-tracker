@@ -7,6 +7,7 @@ import { Check, ICON_WEIGHT } from "../icons";
 import * as api from "@/lib/groups/api";
 import {
   currentTally,
+  linkState,
   groupNote,
   groupTimeline,
   memberStandings,
@@ -81,14 +82,23 @@ export function GroupDetailSheet({
     group.cadence === "daily" ? "day" : group.cadence === "weekly" ? "week" : "month";
   const isCreator = userId === group.createdBy;
 
-  // The habit this group reads from can be deleted like any other, at which
-  // point the member silently stops publishing. Surfacing that beats leaving
-  // somebody to wonder why their name never lights up.
+  // The habit this group reads from can be deleted or archived like any
+  // other, at which point the member stops publishing. Surfacing that beats
+  // leaving somebody to wonder why their name never lights up.
   const me = members.find((m) => m.userId === userId);
-  const linkedHabit = me?.habitId
-    ? habits.find((h) => h.id === me.habitId && !h.deletedAt && !h.archivedAt)
-    : undefined;
-  const linkBroken = !!me && !linkedHabit;
+  const link = me ? linkState(me.habitId, habits) : null;
+  const linkBroken = !!link && link.kind !== "tracking";
+  // Being unsure is its own case. A habit that is merely absent from this
+  // device is very often one that has not synced here yet, and telling
+  // somebody it was deleted — then offering to replace it — is how a link
+  // that was fine gets detached for good.
+  const linkUnsure = link?.kind === "unknown";
+  // Habits this group could read instead. Archiving the linked habit tends to
+  // empty this, since the archived one is itself excluded — so the empty case
+  // needs an answer rather than a blank row of nothing.
+  const relinkable = habits.filter(
+    (h) => !h.deletedAt && !h.archivedAt && h.cadence === group.cadence,
+  );
 
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -204,9 +214,11 @@ export function GroupDetailSheet({
                       {isMe && <span className="ml-1.5 text-xs text-bone/35">you</span>}
                     </span>
                     <span className="block text-xs text-bone/45">
-                      {s.rate === null
-                        ? "nothing published yet"
-                        : `${Math.round(s.rate * 100)}% of the last ${s.published}`}
+                      {!s.tracking
+                        ? "not tracking this right now"
+                        : s.rate === null
+                          ? "nothing published yet"
+                          : `${Math.round(s.rate * 100)}% of the last ${s.published}`}
                     </span>
                   </span>
                   {isCreator && !isMe && (
@@ -236,30 +248,57 @@ export function GroupDetailSheet({
         {linkBroken && (
           <div className="rounded-2xl border border-highlight/30 bg-highlight/8 p-4">
             <p className="text-[0.9375rem] font-semibold text-bone">
-              Nothing is being shared from this device
+              {linkUnsure
+                ? "This device can't see the habit for this group"
+                : "Nothing is being shared from this device"}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-bone/55">
-              The habit this group was reading has been deleted or archived, so
-              your check-ins are not reaching it. Point it at one of your habits
-              to start again.
+              {link?.kind === "deleted" ? (
+                <>
+                  The habit this group was reading has been deleted, so what it
+                  had published has been withdrawn along with it. Point the
+                  group at another habit to start again.
+                </>
+              ) : link?.kind === "archived" ? (
+                <>
+                  The habit this group was reading is archived, so nothing is
+                  reaching it. Your published history is still here and comes
+                  back if you restore that habit from Settings — or point the
+                  group at a different one.
+                </>
+              ) : link?.kind === "unknown" ? (
+                <>
+                  It may simply not have synced to this device yet. Nothing has
+                  been changed, and it should sort itself out once this device
+                  catches up. Check in from the device you usually use.
+                </>
+              ) : (
+                <>
+                  This group is not reading any of your habits. Point it at one
+                  to start sharing again.
+                </>
+              )}
             </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {habits
-                .filter(
-                  (h) =>
-                    !h.deletedAt && !h.archivedAt && h.cadence === group.cadence,
-                )
-                .map((h) => (
-                  <button
-                    key={h.id}
-                    type="button"
-                    onClick={() => void onRelink(group.id, h.id)}
-                    className="rounded-full border border-white/12 px-3 py-1.5 text-xs font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-95"
-                  >
-                    {h.name}
-                  </button>
-                ))}
-            </div>
+            {!linkUnsure &&
+              (relinkable.length ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {relinkable.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => void onRelink(group.id, h.id)}
+                      className="rounded-full border border-white/12 px-3 py-1.5 text-xs font-semibold text-bone/70 transition hover:bg-white/10 hover:text-bone active:scale-95"
+                    >
+                      {h.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs leading-relaxed text-bone/40">
+                  You have no other {group.cadence} habit to point
+                  it at. Start one on the home screen and it will appear here.
+                </p>
+              ))}
           </div>
         )}
 

@@ -379,6 +379,150 @@ describe("groups schema", () => {
   });
 
 
+  /**
+   * Detaching a habit is done with two plain statements rather than a function
+   * of its own, on the grounds that the existing policies already permit
+   * exactly it and nothing more. That is a claim about the policies, so it is
+   * checked here rather than assumed — including the half that matters most,
+   * that the same statements aimed at somebody else do nothing.
+   */
+  describe("withdrawing a habit from a group", () => {
+    async function groupWithBoth() {
+      const id = await makeGroup(ALICE);
+      await asUser(ALICE, () => db.query(`select public.invite_to_group($1,$2)`, [id, BOB.email]));
+      await asUser(BOB, () =>
+        db.query(`select public.accept_group_invite($1,$2,$3)`, [id, "bob-habit", "Bob"]),
+      );
+      await asUser(BOB, () =>
+        db.query(`select public.publish_group_progress($1,$2::jsonb)`, [
+          id,
+          JSON.stringify([{ period_start: "2026-03-01", completed: true }]),
+        ]),
+      );
+      return id;
+    }
+
+    it("lets a member find which of their memberships read a given habit", async () => {
+      const id = await groupWithBoth();
+      const found = await asUser(BOB, () =>
+        rows<{ group_id: string }>(
+          `select group_id from public.group_members
+            where user_id = $1 and habit_id = $2`,
+          [BOB.id, "bob-habit"],
+        ),
+      );
+      assert.deepEqual(found.map((r) => r.group_id), [id]);
+    });
+
+    it("lets a member erase their own published progress", async () => {
+      const id = await groupWithBoth();
+      await asUser(BOB, () =>
+        db.query(`delete from public.group_progress where group_id = $1 and user_id = $2`, [
+          id,
+          BOB.id,
+        ]),
+      );
+      const left = await asUser(ALICE, () =>
+        rows(`select 1 from public.group_progress where group_id = $1`, [id]),
+      );
+      assert.equal(left.length, 0);
+    });
+
+    it("lets a member clear their own link", async () => {
+      const id = await groupWithBoth();
+      await asUser(BOB, () =>
+        db.query(
+          `update public.group_members set habit_id = null
+            where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      const seen = await asUser(ALICE, () =>
+        rows<{ habit_id: string | null }>(
+          `select habit_id from public.group_members where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      assert.equal(seen[0].habit_id, null);
+    });
+
+    it("keeps the member in the group", async () => {
+      // Withdrawing a habit is not leaving. They can point the group at
+      // another one without being re-invited.
+      const id = await groupWithBoth();
+      await asUser(BOB, () =>
+        db.query(`update public.group_members set habit_id = null where group_id = $1`, [id]),
+      );
+      const members = await asUser(ALICE, () =>
+        rows(`select 1 from public.group_members where group_id = $1`, [id]),
+      );
+      assert.equal(members.length, 2);
+    });
+
+    it("cannot erase another member's progress", async () => {
+      const id = await groupWithBoth();
+      await asUser(ALICE, () =>
+        db.query(`select public.publish_group_progress($1,$2::jsonb)`, [
+          id,
+          JSON.stringify([{ period_start: "2026-03-01", completed: true }]),
+        ]),
+      );
+      // No error: RLS makes the rows invisible to the delete rather than
+      // refusing it, so the check has to be that Bob's row survived.
+      await asUser(ALICE, () =>
+        db.query(`delete from public.group_progress where group_id = $1 and user_id = $2`, [
+          id,
+          BOB.id,
+        ]),
+      );
+      const bobs = await asUser(BOB, () =>
+        rows(`select 1 from public.group_progress where group_id = $1 and user_id = $2`, [
+          id,
+          BOB.id,
+        ]),
+      );
+      assert.equal(bobs.length, 1, "another member's progress was erased");
+    });
+
+    it("cannot clear another member's link", async () => {
+      const id = await groupWithBoth();
+      await asUser(ALICE, () =>
+        db.query(
+          `update public.group_members set habit_id = null
+            where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      const seen = await asUser(BOB, () =>
+        rows<{ habit_id: string | null }>(
+          `select habit_id from public.group_members where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      assert.equal(seen[0].habit_id, "bob-habit", "another member's link was cleared");
+    });
+
+    it("lets a member relink afterwards", async () => {
+      const id = await groupWithBoth();
+      await asUser(BOB, () =>
+        db.query(`update public.group_members set habit_id = null where group_id = $1`, [id]),
+      );
+      await asUser(BOB, () =>
+        db.query(`update public.group_members set habit_id = $2 where group_id = $1`, [
+          id,
+          "bob-other-habit",
+        ]),
+      );
+      const seen = await asUser(BOB, () =>
+        rows<{ habit_id: string | null }>(
+          `select habit_id from public.group_members where group_id = $1 and user_id = $2`,
+          [id, BOB.id],
+        ),
+      );
+      assert.equal(seen[0].habit_id, "bob-other-habit");
+    });
+  });
+
   describe("the shareable invite link", () => {
     /**
      * The link exists so somebody who has never opened the app can see what
