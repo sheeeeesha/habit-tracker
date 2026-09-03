@@ -58,6 +58,20 @@ export interface Prefs {
    * off the device, so it waits to be asked for.
    */
   aiInsights: boolean;
+  /** Which service written insights go to. */
+  aiProvider: "anthropic" | "opencode-go";
+  aiModel: string;
+  /**
+   * The caller's own API key, kept on this device.
+   *
+   * It is sent to this app's own server on each reading and forwarded once,
+   * because neither provider allows a browser to call it directly. It is never
+   * stored server-side. Anyone entering a key into a deployment they do not
+   * run is trusting whoever does.
+   */
+  aiApiKey: string;
+  /** Stable per-install id, so the gateway can group requests for caching. */
+  aiSessionId: string;
 }
 
 export interface SyncState {

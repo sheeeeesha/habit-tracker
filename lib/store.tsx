@@ -21,6 +21,10 @@ const DEFAULT_PREFS: Prefs = {
   iconBadge: false,
   backfillDismissedOn: "",
   aiInsights: false,
+  aiProvider: "anthropic",
+  aiModel: "claude-opus-5",
+  aiApiKey: "",
+  aiSessionId: "",
 };
 
 const DEFAULT_SYNC: SyncState = {
@@ -365,6 +369,20 @@ export function setName(name: string, at: number = Date.now()) {
 
 export function setPrefs(patch: Partial<Prefs>) {
   update((s) => ({ ...s, prefs: { ...s.prefs, ...patch } }));
+}
+
+/**
+ * A stable id for this install, minted on first use.
+ *
+ * OpenCode Go asks callers to send one so it can group a conversation for
+ * prompt caching; it identifies the install, never the person.
+ */
+export function ensureAiSessionId(): string {
+  const existing = snapshot.state.prefs.aiSessionId;
+  if (existing) return existing;
+  const id = newId();
+  setPrefs({ aiSessionId: id });
+  return id;
 }
 
 export function setSync(patch: Partial<SyncState>) {

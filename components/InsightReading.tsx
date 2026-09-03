@@ -2,6 +2,8 @@
 
 import { Sparkle, ICON_WEIGHT } from "./icons";
 import { useAiInsight } from "@/lib/useAiInsight";
+import { useStore } from "@/lib/store";
+import { findModel } from "@/lib/insightModels";
 import { worthAsking } from "@/lib/insightPayload";
 import type { HabitAnalytics } from "@/lib/analytics";
 import type { Habit } from "@/lib/types";
@@ -26,6 +28,10 @@ export function InsightReading({ habit, stats, color, enabled }: InsightReadingP
     enabled ? habit : null,
     enabled ? stats : null,
   );
+  const { state } = useStore();
+  // Name the model that actually wrote it, rather than assuming Claude.
+  const modelLabel =
+    findModel(state.prefs.aiModel)?.label ?? state.prefs.aiModel ?? "a model";
 
   if (!enabled || !worthAsking(stats)) return null;
 
@@ -35,7 +41,7 @@ export function InsightReading({ habit, stats, color, enabled }: InsightReadingP
         <h2 className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-bone/45">
           What this looks like
         </h2>
-        <span className="shrink-0 text-[0.625rem] text-bone/25">written by Claude</span>
+        <span className="shrink-0 text-[0.625rem] text-bone/25">written by {modelLabel}</span>
       </div>
 
       {insight ? (
@@ -82,10 +88,10 @@ export function InsightReading({ habit, stats, color, enabled }: InsightReadingP
       ) : (
         <>
           <p className="text-sm leading-relaxed text-bone/55">
-            Everything above is computed on this device. This asks Claude to read
-            those same figures back and say what stands out &mdash; it is given
-            the numbers, never your check-ins, and cites which figure it used so
-            you can check it against the charts.
+            Everything above is computed on this device. This asks {modelLabel}{" "}
+            to read those same figures back and say what stands out &mdash; it is
+            given the numbers, never your check-ins, and cites which figure it
+            used so you can check it against the charts.
           </p>
           {status === "error" && (
             <p className="mt-2 text-xs font-medium text-hyperpink">{error}</p>

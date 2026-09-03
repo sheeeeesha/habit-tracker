@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { ensureAiSessionId, readState } from "./store";
 import { buildInsightPayload, payloadKey, type InsightPayload } from "./insightPayload";
 import type { HabitAnalytics } from "./analytics";
 import type { Habit } from "./types";
@@ -77,7 +78,11 @@ export function useAiInsight(habit: Habit | null, stats: HabitAnalytics | null) 
     null,
   );
 
-  const key = habit && stats ? payloadKey(buildInsightPayload(habit, stats)) : null;
+  // The model is part of the key: switching model must not show the previous
+  // model's reading as though it were the new one's.
+  const model = readState().prefs.aiModel;
+  const key =
+    habit && stats ? `${model}:${payloadKey(buildInsightPayload(habit, stats))}` : null;
 
   // Safe to read storage during render here: this component only mounts once
   // the store has hydrated, so it never takes part in hydration itself.
@@ -100,9 +105,20 @@ export function useAiInsight(habit: Habit | null, stats: HabitAnalytics | null) 
       setResult({ key, state: { status: "error", insight: previous, error: message } });
 
     try {
+      // The key travels in a header rather than the body so it cannot land
+      // in a request-body log next to the statistics.
+      const prefs = readState().prefs;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (prefs.aiApiKey) {
+        headers["x-insight-key"] = prefs.aiApiKey;
+        headers["x-insight-provider"] = prefs.aiProvider;
+        headers["x-insight-model"] = prefs.aiModel;
+        headers["x-insight-session"] = ensureAiSessionId();
+      }
+
       const res = await fetch("/api/insight", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => null);

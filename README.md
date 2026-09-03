@@ -373,9 +373,40 @@ The habit's **name** is the one genuinely personal field that leaves the
 device. It is included because without it the advice degrades to "your daily
 habit" — and it is exactly why the feature waits to be switched on.
 
-Set `ANTHROPIC_API_KEY` (server-side, **no** `NEXT_PUBLIC_` prefix) to enable
-it. Without the key the panel says so and everything else on the page is
-unaffected.
+#### Providing a key
+
+Two ways. The deployment can set `ANTHROPIC_API_KEY` (server-side, **no**
+`NEXT_PUBLIC_` prefix — that prefix would publish it to every visitor), or a
+person can enter their own in Settings and pick a model.
+
+Settings supports **Anthropic** and **OpenCode Go**. Go fronts around
+twenty-five open models behind *three different API shapes*, and which one a
+model wants is a property of the model rather than the provider — Kimi, GLM and
+DeepSeek speak OpenAI chat-completions; MiniMax and Qwen speak the Anthropic
+messages shape; Grok, GPT and Muse Spark speak OpenAI responses. Sending the
+wrong one is a 404 or a silently empty reply, so `lib/insightModels.ts` records
+it per model and a test pins the pairings that break quietly if they drift. A
+model id can also be typed in by hand; an unknown one is called with
+chat-completions, which is what most open models use.
+
+Anthropic keeps the SDK path, where `messages.parse` enforces the schema. The
+gateway has no comparable guarantee, so those replies go through a defensive
+parser — open models routinely answer with a markdown fence or a sentence of
+preamble even when asked for bare JSON, and a partial object is rejected rather
+than rendered as a card with blanks in it.
+
+#### Where the key goes, and why
+
+**Neither provider sends CORS headers, so a browser cannot call them
+directly.** The key is therefore kept on the device, sent to this app's own
+server on each reading, and forwarded once. It is never stored server-side,
+never attached to an error, and travels in a header rather than the body so it
+cannot land in a request-body log beside the statistics. Upstream failures
+return fixed strings rather than anything derived from the response.
+
+On a deployment you run yourself that is your own key on your own server. On
+somebody else's, you are trusting whoever runs it — which the Settings panel
+says in as many words rather than leaving to be discovered.
 
 ### What is deliberately not here
 

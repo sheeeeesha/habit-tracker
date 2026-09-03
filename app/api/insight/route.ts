@@ -1,21 +1,34 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import {
+  buildRequest,
+  coerceInsight,
+  extractJsonObject,
+  extractText,
+} from "@/lib/insightRequest";
+import {
+  DEFAULT_MODEL,
+  resolveShape,
+  type ProviderId,
+} from "@/lib/insightModels";
 
 /**
  * Writes a short reading of one habit's already-computed statistics.
  *
- * Server-side because the API key must never reach the browser. Note the env
- * var has no NEXT_PUBLIC_ prefix, deliberately — that prefix is what inlines a
- * value into the client bundle, and doing it here would publish the key to
- * everyone who loads the page.
+ * Two ways in. The deployment can supply an Anthropic key through the
+ * environment, or a person can bring their own key for Anthropic or OpenCode
+ * Go and have it sent per request.
  *
- * The model is given numbers and asked to interpret them. It is told, and the
- * schema enforces, that it must cite which figure it used; every number it can
- * mention is one this app computed and is already showing on the same screen.
- * That is what stops a written insight from quietly inventing a statistic —
- * the reading can be wrong about meaning, which is arguable, but it cannot be
- * wrong about arithmetic.
+ * A caller's key is used for exactly one outbound call and then goes out of
+ * scope. It is never written down, never attached to an error, and never
+ * logged — including in the failure paths below, which deliberately return
+ * fixed strings rather than anything derived from the upstream response.
+ *
+ * It has to pass through here at all only because OpenCode Go sends no CORS
+ * headers, so the browser cannot reach it directly. That is worth knowing if
+ * anyone but the deployment's owner ever types a key into this app: their key
+ * transits this server, and they are trusting whoever runs it.
  */
 
 export const runtime = "nodejs";
@@ -61,11 +74,40 @@ WHAT THE RESEARCH SAYS, so your reading is consistent with the rest of the app
 
 If the figures are unremarkable, say so honestly rather than manufacturing a pattern.`;
 
+/** Appended for models with no schema enforcement to lean on. */
+const JSON_INSTRUCTION = `
+
+OUTPUT
+Reply with a single JSON object and nothing else. No markdown fence, no commentary before or after it.
+{"headline": string, "reading": string, "suggestion": string, "basis": string}`;
+
+const ok = (fields: unknown) => Response.json(fields);
+const fail = (message: string, status: number) =>
+  Response.json({ error: message }, { status });
+
 export async function POST(request: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json(
-      { error: "Written insights are not configured on this deployment." },
-      { status: 501 },
+  // The caller's key arrives in a header, not the body, so it cannot end up in
+  // a request-body log alongside the payload.
+  const callerKey = request.headers.get("x-insight-key")?.trim() || null;
+  const providerHeader = request.headers.get("x-insight-provider")?.trim();
+  const modelHeader = request.headers.get("x-insight-model")?.trim();
+  const sessionId = request.headers.get("x-insight-session")?.trim() || undefined;
+
+  const provider: ProviderId =
+    providerHeader === "opencode-go" ? "opencode-go" : "anthropic";
+  const model = modelHeader || DEFAULT_MODEL[provider];
+
+  const envKey = process.env.ANTHROPIC_API_KEY?.trim() || null;
+  // A caller's own key wins; the deployment's key is the fallback and only
+  // ever works for Anthropic.
+  const apiKey = callerKey ?? (provider === "anthropic" ? envKey : null);
+
+  if (!apiKey) {
+    return fail(
+      callerKey === null && provider === "opencode-go"
+        ? "Add your OpenCode Go key in Settings first."
+        : "Written insights are not configured. Add a key in Settings.",
+      501,
     );
   }
 
@@ -73,72 +115,122 @@ export async function POST(request: Request) {
   try {
     payload = await request.json();
   } catch {
-    return Response.json({ error: "Malformed request." }, { status: 400 });
+    return fail("Malformed request.", 400);
   }
 
-  // A crude size guard: this endpoint only ever receives one small statistics
-  // object, so anything large is either a bug or someone using the deployment
-  // as a free proxy to the model.
+  // This endpoint only ever receives one small statistics object, so anything
+  // large is either a bug or an attempt to use the deployment as a free proxy.
   const serialised = JSON.stringify(payload);
   if (!serialised || serialised.length > 4000) {
-    return Response.json({ error: "Unexpected request shape." }, { status: 400 });
+    return fail("Unexpected request shape.", 400);
   }
 
-  const client = new Anthropic();
+  const userContent = `Here are the computed statistics for one habit. Write the reading.\n\n${serialised}`;
 
+  // Anthropic direct keeps the SDK path: `messages.parse` enforces the schema,
+  // which is a real guarantee and worth not giving up for uniformity.
+  if (provider === "anthropic") {
+    return callAnthropic(apiKey, model, userContent);
+  }
+
+  return callGateway({ provider, model, apiKey, userContent, sessionId });
+}
+
+async function callAnthropic(apiKey: string, model: string, userContent: string) {
+  const client = new Anthropic({ apiKey });
   try {
     const response = await client.messages.parse({
-      model: "claude-opus-5",
+      model,
       max_tokens: 8000,
       thinking: { type: "adaptive" },
-      output_config: {
-        effort: "medium",
-        format: zodOutputFormat(InsightSchema),
-      },
+      output_config: { effort: "medium", format: zodOutputFormat(InsightSchema) },
       system: SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: `Here are the computed statistics for one habit. Write the reading.\n\n${serialised}`,
-        },
-      ],
+      messages: [{ role: "user", content: userContent }],
     });
 
     if (response.stop_reason === "refusal") {
-      return Response.json(
-        { error: "The model declined to answer this one." },
-        { status: 422 },
-      );
+      return fail("The model declined to answer this one.", 422);
     }
-
     const parsed = response.parsed_output;
-    if (!parsed) {
-      return Response.json(
-        { error: "Could not read the response. Try again." },
-        { status: 502 },
-      );
-    }
-
-    return Response.json(parsed);
+    if (!parsed) return fail("Could not read the response. Try again.", 502);
+    return ok(parsed);
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
-      return Response.json(
-        { error: "The insight service is misconfigured." },
-        { status: 500 },
-      );
+      return fail("That Anthropic key was rejected.", 401);
     }
     if (error instanceof Anthropic.RateLimitError) {
-      return Response.json(
-        { error: "Too many requests just now. Try again shortly." },
-        { status: 429 },
-      );
+      return fail("Rate limited. Try again shortly.", 429);
+    }
+    if (error instanceof Anthropic.NotFoundError) {
+      return fail("That model id was not recognised.", 404);
     }
     if (error instanceof Anthropic.APIConnectionError) {
-      return Response.json({ error: "Couldn't reach the model." }, { status: 503 });
+      return fail("Couldn't reach the model.", 503);
     }
     if (error instanceof Anthropic.APIError) {
-      return Response.json({ error: "The model call failed." }, { status: 502 });
+      return fail("The model call failed.", 502);
     }
-    return Response.json({ error: "Something went wrong." }, { status: 500 });
+    return fail("Something went wrong.", 500);
   }
+}
+
+async function callGateway(options: {
+  provider: ProviderId;
+  model: string;
+  apiKey: string;
+  userContent: string;
+  sessionId?: string;
+}) {
+  const { provider, model, apiKey, userContent, sessionId } = options;
+  const shape = resolveShape(provider, model);
+
+  const req = buildRequest({
+    provider,
+    shape,
+    model,
+    apiKey,
+    // No schema enforcement out here, so the format is spelled out in words.
+    system: SYSTEM + JSON_INSTRUCTION,
+    user: userContent,
+    sessionId,
+  });
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(req.url, {
+      method: "POST",
+      headers: req.headers,
+      body: req.body,
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch {
+    return fail("Couldn't reach the model.", 503);
+  }
+
+  if (!upstream.ok) {
+    // Fixed strings rather than the upstream body: an error from a gateway can
+    // echo request details back, and none of that should reach a client.
+    if (upstream.status === 401 || upstream.status === 403) {
+      return fail("That key was rejected.", 401);
+    }
+    if (upstream.status === 404) return fail("That model id was not recognised.", 404);
+    if (upstream.status === 429) return fail("Rate limited, or the plan's limit is used up.", 429);
+    return fail("The model call failed.", 502);
+  }
+
+  let body: unknown;
+  try {
+    body = await upstream.json();
+  } catch {
+    return fail("The model returned something unreadable.", 502);
+  }
+
+  const fields = coerceInsight(extractJsonObject(extractText(shape, body)));
+  if (!fields) {
+    return fail(
+      "That model didn't return a usable reading. Try again, or pick a different one.",
+      502,
+    );
+  }
+  return ok(fields);
 }
