@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Aurora } from "@/components/Aurora";
+import { InsightReading } from "@/components/InsightReading";
 import { HabitTile } from "@/components/HabitGlyph";
 import { CaretLeft, ICON_WEIGHT } from "@/components/icons";
 import {
@@ -195,7 +196,15 @@ export default function InsightsPage() {
                   </p>
                 </div>
               ) : (
-                stats && <Panels habit={habit} stats={stats} heat={heat} color={accent.hex} />
+                stats && (
+                  <Panels
+                    habit={habit}
+                    stats={stats}
+                    heat={heat}
+                    color={accent.hex}
+                    aiEnabled={state.prefs.aiInsights}
+                  />
+                )
               )}
             </>
           )}
@@ -210,11 +219,13 @@ function Panels({
   stats,
   heat,
   color,
+  aiEnabled,
 }: {
   habit: Habit;
   stats: HabitAnalytics;
   heat: HeatCell[];
   color: string;
+  aiEnabled: boolean;
 }) {
   const { automaticity, recovery, trend, momentum, weekdays, runs } = stats;
   const unit =
@@ -365,6 +376,8 @@ function Panels({
       >
         <YearHeatmap cells={heat} color={color} />
       </Card>
+
+      <InsightReading habit={habit} stats={stats} color={color} enabled={aiEnabled} />
 
       <p className="px-1 pt-2 text-xs leading-relaxed text-bone/30">
         Everything here is computed on this device from your own check-ins.

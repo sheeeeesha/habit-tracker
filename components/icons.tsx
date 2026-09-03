@@ -21,6 +21,7 @@ import { DotsThreeVertical } from "@phosphor-icons/react/dist/ssr/DotsThreeVerti
 import { Export } from "@phosphor-icons/react/dist/ssr/Export";
 import { Fire } from "@phosphor-icons/react/dist/ssr/Fire";
 import { Plus } from "@phosphor-icons/react/dist/ssr/Plus";
+import { Sparkle } from "@phosphor-icons/react/dist/ssr/Sparkle";
 import { PlusSquare } from "@phosphor-icons/react/dist/ssr/PlusSquare";
 import { UsersThree } from "@phosphor-icons/react/dist/ssr/UsersThree";
 import { X } from "@phosphor-icons/react/dist/ssr/X";
@@ -36,6 +37,7 @@ export {
   Fire,
   Plus,
   PlusSquare,
+  Sparkle,
   UsersThree,
   X,
 };

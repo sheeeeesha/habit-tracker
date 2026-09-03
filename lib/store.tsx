@@ -20,6 +20,7 @@ const DEFAULT_PREFS: Prefs = {
   reduceMotion: false,
   iconBadge: false,
   backfillDismissedOn: "",
+  aiInsights: false,
 };
 
 const DEFAULT_SYNC: SyncState = {

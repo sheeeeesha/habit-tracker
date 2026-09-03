@@ -28,6 +28,13 @@ segmented bar and count up; once-a-day habits show a seven-day history strip.
 Finishing a period fires confetti and a haptic tick. `Undo` steps back a
 check-in, and any past day can be corrected by tapping it in the calendar.
 
+**Forgot to tick yesterday.** The home screen says how many daily habits went
+unticked and opens a list of just those. Backfilling re-scores properly —
+streaks, rates and the automaticity curve all re-read from the log, so a run
+you actually kept comes back rather than being forgiven. Capped at yesterday;
+anything older is a correction and lives in the habit's calendar, where you can
+see what you are changing.
+
 **Streaks that don't lie.** A streak counts consecutive *completed periods*:
 
 - The period in progress is graceful — not having finished today yet doesn't
@@ -339,6 +346,37 @@ habits). Weekday is a coarse proxy for context, but it is the one this app can
 measure honestly, and the weakest day is flagged because that is the routine
 worth planning rather than the one to push harder on.
 
+### The written reading
+
+Optional, off by default, and behind Settings ▸ *Written insights*. It asks
+Claude to read the panels above and say what stands out.
+
+**The model is given figures, never data.** Everything in the payload has
+already been computed by `lib/analytics.ts` and is displayed on the same screen
+as the reading. No check-ins, no dates, no raw counts — a test asserts the
+payload contains no date and no log, because that property is the only thing
+making a written insight trustworthy. The reading can be wrong about meaning,
+which is arguable; it cannot be wrong about arithmetic.
+
+It must also cite the figure it leaned on, and that citation is shown, so the
+reading can be checked against the charts rather than taken on trust. The
+prompt carries the same research the panels do, so the advice cannot contradict
+them — no promising a date from the 66-repetition median, and treating a weak
+weekday as a scheduling problem rather than a character one.
+
+Readings are cached against a hash of the exact numbers that produced them.
+Opening the page twice costs one request, and when a check-in moves the figures
+the key changes and the stale reading disappears rather than sitting above
+charts it does not describe.
+
+The habit's **name** is the one genuinely personal field that leaves the
+device. It is included because without it the advice degrades to "your daily
+habit" — and it is exactly why the feature waits to be switched on.
+
+Set `ANTHROPIC_API_KEY` (server-side, **no** `NEXT_PUBLIC_` prefix) to enable
+it. Without the key the panel says so and everything else on the page is
+unaffected.
+
 ### What is deliberately not here
 
 - **No correlations between habits.** Over a handful of habits and a few
@@ -350,7 +388,11 @@ worth planning rather than the one to push harder on.
   when you performed the habit would be reporting an artefact as behaviour.
 - **Nothing at all below 10 completed periods.** Rates from fewer swing on a
   single day, and a chart that looks confident about noise is worse than no
-  chart.
+  chart. The written reading refuses below the same floor rather than spending
+  a request on it.
+- **No AI anywhere near the numbers.** Every figure is computed locally and
+  deterministically. The model interprets; it never calculates, and it never
+  sees enough to try.
 
 Sources: [Lally et al., 2010](https://onlinelibrary.wiley.com/doi/10.1002/ejsp.674) ·
 [Harkin et al., 2016](https://pubmed.ncbi.nlm.nih.gov/26479070/) ·

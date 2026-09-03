@@ -198,6 +198,22 @@ export function MenuSheet({ open, onClose }: MenuSheetProps) {
           )}
 
           <Row
+            title="Written insights"
+            subtitle={
+              state.prefs.aiInsights
+                ? "Insights can ask Claude to read your figures. The habit's name and its computed statistics are sent; your check-ins never are."
+                : "Let Insights ask Claude to read your figures back to you. This is the only thing in the app that sends anything about a habit off this device."
+            }
+            action={
+              <Toggle
+                checked={state.prefs.aiInsights}
+                onChange={(v) => setPrefs({ aiInsights: v })}
+                label="Written insights"
+              />
+            }
+          />
+
+          <Row
             title="Reduce motion"
             subtitle="Turns off the background drift, confetti and slide animations."
             action={

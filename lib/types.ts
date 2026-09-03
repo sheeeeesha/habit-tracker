@@ -52,6 +52,12 @@ export interface Prefs {
    * Scoped to a day so declining it once does not hide it forever.
    */
   backfillDismissedOn: string;
+  /**
+   * Send this habit's computed figures to Claude for a written reading.
+   * Off by default: it is the one feature that sends anything about a habit
+   * off the device, so it waits to be asked for.
+   */
+  aiInsights: boolean;
 }
 
 export interface SyncState {
