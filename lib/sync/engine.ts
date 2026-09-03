@@ -281,12 +281,17 @@ export async function verifyEmailCode(
       ? supabase.auth.verifyOtp({ token_hash: parsed.token, type: "magiclink" })
       : supabase.auth.verifyOtp({ email, token: parsed.token, type: "email" });
 
+  // The same address gets a different email depending on whether it had been
+  // seen before: a first-time one is a signup, a returning one a magic link.
+  // Both carry a usable token, and a rejected attempt does not consume it, so
+  // the second reading is tried for free rather than asking anyone to care
+  // which of the two they were sent.
   let { error } = await attempt(parsed.type);
-  if (error && parsed.type === "magiclink") {
-    // A link can be issued as a signup rather than a magiclink depending on
-    // whether the address had been seen before. A rejected attempt does not
-    // consume the token, so trying the other reading is free.
-    ({ error } = await supabase.auth.verifyOtp({ token_hash: parsed.token, type: "signup" }));
+  if (error) {
+    ({ error } =
+      parsed.type === "magiclink"
+        ? await supabase.auth.verifyOtp({ token_hash: parsed.token, type: "signup" })
+        : await supabase.auth.verifyOtp({ email, token: parsed.token, type: "signup" }));
   }
 
   if (!error) return null;
