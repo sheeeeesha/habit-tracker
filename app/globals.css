@@ -124,6 +124,27 @@
     color: inherit;
   }
 
+  /*
+   * Native select popups are drawn by the platform, not by the page. It paints
+   * its own light ground and ignores the field's dark styling, but the options
+   * still inherit the app's near-white text — which is cream on white, and
+   * unreadable.
+   *
+   * Dark text on a light ground is the safe pairing rather than the reverse:
+   * where the platform honours both declarations the popup matches, and where
+   * it honours only the colour the text still lands on the platform's own
+   * light background.
+   */
+  select option,
+  select optgroup {
+    background-color: #f6f2e9;
+    color: #08070a;
+  }
+
+  select optgroup {
+    font-weight: 700;
+  }
+
   /* Keyboard focus stays visible; pointer focus does not draw rings. */
   :focus-visible {
     outline: 2px solid var(--color-acid);
