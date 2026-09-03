@@ -19,6 +19,16 @@ const DEBOUNCE_MS = 2_500;
 
 export interface SyncView {
   status: SyncStatus;
+  /**
+   * Whether the session has actually been looked up yet.
+   *
+   * `status` starts at "signed-out" because that is the right thing to render
+   * while nothing is known, but it is a guess until `getSession` answers.
+   * Anything that appears *because* somebody is signed out — a prompt to sign
+   * in, say — has to wait for this, or it flashes on screen for every signed-in
+   * person on every cold start.
+   */
+  ready: boolean;
   email: string | null;
   lastSyncedAt: number | null;
   error: string | null;
@@ -69,6 +79,8 @@ export function useSync(): SyncView {
   const [status, setStatus] = useState<SyncStatus>(
     isSyncConfigured ? "signed-out" : "disabled",
   );
+  // Nothing to look up when there is no project, so that case is ready at once.
+  const [ready, setReady] = useState(!isSyncConfigured);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -101,6 +113,7 @@ export function useSync(): SyncView {
       setEmail(data.session?.user.email ?? null);
       if (data.session) void run();
       else setStatus(callbackError ? "error" : "signed-out");
+      setReady(true);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -112,6 +125,7 @@ export function useSync(): SyncView {
         setStatus("signed-out");
         setLastSyncedAt(null);
       }
+      setReady(true);
     });
 
     return () => {
@@ -146,5 +160,5 @@ export function useSync(): SyncView {
     };
   }, [run]);
 
-  return { status, email, lastSyncedAt, error, sync: () => void run() };
+  return { status, ready, email, lastSyncedAt, error, sync: () => void run() };
 }

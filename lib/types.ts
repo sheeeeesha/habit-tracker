@@ -40,6 +40,13 @@ export interface Habit {
 export interface Prefs {
   /** Epoch ms; the install CTA stays hidden until this moment. */
   installDismissedUntil: number;
+  /**
+   * Epoch ms; the sign-in CTA stays hidden until this moment.
+   *
+   * Device-scoped like the install one, and deliberately not portable:
+   * dismissing a banner on a laptop is not a decision about a phone.
+   */
+  signInDismissedUntil: number;
   /** Set once the app has actually been installed to the home screen. */
   installed: boolean;
   /** Lets the user re-summon the CTA from the menu after dismissing it. */

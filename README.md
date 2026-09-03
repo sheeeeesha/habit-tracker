@@ -54,6 +54,20 @@ Share ▸ Add to Home Screen instructions. Once installed it never reappears on
 its own — Settings ▸ *Home screen shortcut* ▸ **Show again** is the only way
 back. Dismissing with *Not now* snoozes it for 14 days.
 
+**Sign in, if you want a copy elsewhere.** A quieter card in the same slot
+offers it, and disappears the moment there is a session — signing out puts it
+back, so unlike the install CTA it needs nothing in Settings to re-arm it. It
+waits for the session lookup to answer before appearing: the sync status reads
+"signed-out" until `getSession` says otherwise, which is right for rendering but
+a guess, and acting on it early would flash this at every signed-in person on
+every cold start. *Not now* snoozes it for 21 days.
+
+Only one of the two shows at a time. Both are full-width cards above the habit
+list, and stacking them pushes the habits off the screen — which is what
+somebody opened the app for. Install goes first because taking it also earns
+persistent storage, so it makes the local copy sturdier as well; this one takes
+its turn once that is installed or snoozed.
+
 ---
 
 ## Running it

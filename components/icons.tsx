@@ -17,6 +17,7 @@ import { CalendarX } from "@phosphor-icons/react/dist/ssr/CalendarX";
 import { CaretLeft } from "@phosphor-icons/react/dist/ssr/CaretLeft";
 import { CaretRight } from "@phosphor-icons/react/dist/ssr/CaretRight";
 import { Check } from "@phosphor-icons/react/dist/ssr/Check";
+import { CloudArrowUp } from "@phosphor-icons/react/dist/ssr/CloudArrowUp";
 import { DotsThreeVertical } from "@phosphor-icons/react/dist/ssr/DotsThreeVertical";
 import { Export } from "@phosphor-icons/react/dist/ssr/Export";
 import { Fire } from "@phosphor-icons/react/dist/ssr/Fire";
@@ -32,6 +33,7 @@ export {
   CaretLeft,
   CaretRight,
   Check,
+  CloudArrowUp,
   DotsThreeVertical,
   Export,
   Fire,
