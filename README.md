@@ -568,10 +568,11 @@ has a loser.
 - **Clearing a day is a value, not an absence.** It is stored as `count = 0`
   with a timestamp, so undoing a check-in beats a stale one on the server
   instead of silently reappearing.
-- **The display name rides on the auth user's metadata**, not a table of its
-  own. It is one string that changes about once, so a table with its own
-  policies and conflict resolution would be a lot of machinery for it. Same
-  last-write-wins rule as everything else.
+- **The name and some settings ride on the auth user's metadata**, not a
+  table of their own — a handful of fields that change about once each, where
+  a table with its own policies and conflict resolution would be a lot of
+  machinery. Same last-write-wins rule as everything else. Which settings, and
+  why only those, is [below](#which-settings-travel).
 - **Signing into a different account wipes local data first**, so a shared
   device never merges one person's habits into another's. That check reads
   `ownerId`, which records who the local database belongs to and survives
@@ -586,9 +587,54 @@ has a loser.
   entire history — harmless, since the conditional upsert makes it a no-op,
   but it grows forever and fires on every check-in.
 
+### Which settings travel
+
+Four: **written insights on or off**, the **provider**, the **model**, and
+**reduce motion**. Those describe a person's preference, so they should be the
+same wherever that person opens the app.
+
+Everything else stays on the device it was set on, and each for a reason.
+`installed` and its siblings describe *this* device rather than a wish.
+`iconBadge` depends on notification permission granted per device, so syncing
+"on" to a phone that never granted it would show a toggle that does nothing.
+`backfillDismissedOn` churns daily and is about one banner.
+
+**The API key never syncs.** Syncing it would write a live key into the
+database, at rest, indefinitely — a much worse place for it than the one
+browser that typed it. It is the one setting you re-enter per device, and that
+is the intended trade.
+
+Two details that are easy to get wrong, so both are pinned by tests:
+
+- **Only a portable setting advances the timestamp** the four are carried
+  under. If dismissing a banner advanced it too, that dismissal would carry a
+  newer stamp than a model chosen on another device and quietly overwrite it —
+  and the symptom would look like "the setting isn't syncing" rather than like
+  a clobber.
+- **The remote copy is read with `getUser`, not the session already in hand.**
+  `getSession` returns what is in local storage without asking the server, so
+  its metadata is a snapshot from when the access token was last issued, up to
+  an hour old. Deciding against that snapshot is not just late: a device whose
+  snapshot predates another device's change reads its own older edit as the
+  newer one and pushes it over the top. If that fetch fails there is no safe
+  decision to make, so this round does nothing and habits sync as usual.
+
+The four resolve as a group rather than field by field. Changing the model on
+one device while toggling reduced motion on another, both offline, settles on
+one device's group. That is a real if unlikely loss, accepted because the
+alternative is four more timestamps to carry, store and reconcile for settings
+that change about once.
+
 ### What is tested
 
 `npm test` runs both halves of the sync contract.
+
+**The profile** (`lib/sync/profile.test.ts`, `lib/prefsSync.test.ts`) — which
+settings travel and which do not, that the key and the device facts are in
+neither direction of the wire, that the account breaks exact ties, that an
+adopted value keeps the remote timestamp instead of being restamped as a fresh
+local edit, that a device-scoped change does not advance the shared clock, and
+that adopting a pulled value does not schedule another sync.
 
 **The merge** (`lib/sync/merge.test.ts`) — last-write-wins in both directions,
 ties, tombstone propagation, per-day independence, convergence (a second merge

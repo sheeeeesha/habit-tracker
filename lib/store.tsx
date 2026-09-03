@@ -34,11 +34,41 @@ const DEFAULT_SYNC: SyncState = {
   cursor: null,
 };
 
+/**
+ * Preferences that follow the person rather than the device.
+ *
+ * The rest stay put, and each for a reason. `installed` and friends describe
+ * *this* device, not a wish. `iconBadge` needs notification permission granted
+ * per device, so syncing "on" to a phone that has not granted it would show a
+ * toggle that does nothing. `backfillDismissedOn` churns daily for a banner.
+ *
+ * `aiApiKey` is the deliberate one: syncing it would write a live API key into
+ * the database, at rest, forever. It stays on the device that typed it.
+ */
+export const PORTABLE_PREF_KEYS = [
+  "reduceMotion",
+  "aiInsights",
+  "aiProvider",
+  "aiModel",
+] as const;
+
+export type PortablePrefs = Pick<Prefs, (typeof PORTABLE_PREF_KEYS)[number]>;
+
+export function portablePrefs(prefs: Prefs): PortablePrefs {
+  return {
+    reduceMotion: prefs.reduceMotion,
+    aiInsights: prefs.aiInsights,
+    aiProvider: prefs.aiProvider,
+    aiModel: prefs.aiModel,
+  };
+}
+
 function emptyState(): AppState {
   return {
     version: SCHEMA_VERSION,
     name: "",
     nameUpdatedAt: 0,
+    prefsUpdatedAt: 0,
     habits: [],
     log: {},
     prefs: { ...DEFAULT_PREFS },
@@ -99,6 +129,8 @@ function reviveState(raw: string | null): Revived {
       name: typeof parsed.name === "string" ? parsed.name : "",
       nameUpdatedAt:
         typeof parsed.nameUpdatedAt === "number" ? parsed.nameUpdatedAt : 0,
+      prefsUpdatedAt:
+        typeof parsed.prefsUpdatedAt === "number" ? parsed.prefsUpdatedAt : 0,
       habits: Array.isArray(parsed.habits)
         ? parsed.habits
             .map((h) => reviveHabit(h, stamp))
@@ -368,7 +400,44 @@ export function setName(name: string, at: number = Date.now()) {
 }
 
 export function setPrefs(patch: Partial<Prefs>) {
-  update((s) => ({ ...s, prefs: { ...s.prefs, ...patch } }));
+  update((s) => {
+    const next = { ...s.prefs, ...patch };
+    // Only a genuine change to a portable preference advances the clock. A
+    // device-scoped edit must not, or dismissing a banner on one device would
+    // outrank — and overwrite — a model chosen on another.
+    const portableChanged = PORTABLE_PREF_KEYS.some(
+      (k) => k in patch && !Object.is(s.prefs[k], next[k]),
+    );
+    return {
+      ...s,
+      prefs: next,
+      prefsUpdatedAt: portableChanged ? Date.now() : s.prefsUpdatedAt,
+    };
+  });
+}
+
+/**
+ * Adopts the name and portable preferences pulled from the account.
+ *
+ * Marked as sync-originated so it cannot schedule another sync, and the
+ * incoming timestamps are preserved rather than restamped — restamping would
+ * make every pull look like a fresh local edit and win the next comparison.
+ */
+export function applyRemoteProfile(patch: {
+  name?: string;
+  nameUpdatedAt?: number;
+  prefs?: Partial<PortablePrefs>;
+  prefsUpdatedAt?: number;
+}) {
+  applyFromSync(() =>
+    update((s) => ({
+      ...s,
+      name: patch.name ?? s.name,
+      nameUpdatedAt: patch.nameUpdatedAt ?? s.nameUpdatedAt,
+      prefs: patch.prefs ? { ...s.prefs, ...patch.prefs } : s.prefs,
+      prefsUpdatedAt: patch.prefsUpdatedAt ?? s.prefsUpdatedAt,
+    })),
+  );
 }
 
 /**

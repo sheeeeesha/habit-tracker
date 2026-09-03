@@ -1,7 +1,8 @@
 "use client";
 
 import { getSupabase, isSyncConfigured } from "../supabase/client";
-import { applyMerged, readState, resetForAccount, setName, setSync } from "../store";
+import { applyMerged, applyRemoteProfile, readState, resetForAccount, setSync } from "../store";
+import { resolveProfile, type LocalProfile } from "./profile";
 import {
   checkinToRow,
   habitFromRow,
@@ -143,7 +144,12 @@ async function runSync(): Promise<SyncOutcome> {
         .map((c) => checkinToRow(c.habitId, c.day, c.cell)),
     );
 
-    await syncDisplayName(session.user, before.name, before.nameUpdatedAt);
+    await syncProfile({
+      name: before.name,
+      nameUpdatedAt: before.nameUpdatedAt,
+      prefs: before.prefs,
+      prefsUpdatedAt: before.prefsUpdatedAt,
+    });
 
     applyMerged(merged.habits, merged.log, {
       ownerId: userId,
@@ -167,33 +173,33 @@ async function runSync(): Promise<SyncOutcome> {
 }
 
 /**
- * The display name rides on the auth user's metadata rather than a table of
- * its own. It is one string with no history, so a whole table, its policies
- * and its own conflict resolution would be a lot of machinery for a field that
- * changes about once. Same last-write-wins rule as everything else.
+ * Settles the name and the portable preferences against the account.
+ *
+ * They ride on the auth user's metadata rather than a table of their own: a
+ * handful of fields that change about once each, where a table with its own
+ * policies and conflict resolution would be a lot of machinery. Both are
+ * settled together, so a device behind on both does not make two round trips.
+ *
+ * `getUser` rather than the session already in hand, and that costs a request.
+ * `getSession` returns whatever is in local storage without asking the server,
+ * so its `user_metadata` is a snapshot taken when the access token was last
+ * issued — up to an hour old. Deciding against that snapshot is not merely
+ * late: a device whose snapshot predates another device's change would read
+ * its own older edit as the newer one and push it straight over the top.
+ *
+ * If the fetch fails there is no safe decision to make, so this does nothing
+ * and the next sync tries again. Habits are unaffected either way.
  */
-async function syncDisplayName(
-  user: { user_metadata?: Record<string, unknown> },
-  localName: string,
-  localUpdatedAt: number,
-) {
+async function syncProfile(local: LocalProfile) {
   const supabase = getSupabase();
   if (!supabase) return;
 
-  const meta = user.user_metadata ?? {};
-  const remoteName = typeof meta.display_name === "string" ? meta.display_name : "";
-  const remoteUpdatedAt =
-    typeof meta.display_name_updated_at === "number" ? meta.display_name_updated_at : 0;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return;
 
-  if (remoteName === localName) return;
-
-  if (localUpdatedAt > remoteUpdatedAt) {
-    await supabase.auth.updateUser({
-      data: { display_name: localName, display_name_updated_at: localUpdatedAt },
-    });
-  } else if (remoteUpdatedAt > 0) {
-    setName(remoteName, remoteUpdatedAt);
-  }
+  const { outgoing, incoming } = resolveProfile(data.user.user_metadata, local);
+  if (outgoing) await supabase.auth.updateUser({ data: outgoing });
+  if (incoming) applyRemoteProfile(incoming);
 }
 
 /** Coalesces concurrent callers onto a single round trip. */

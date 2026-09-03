@@ -94,6 +94,14 @@ export interface AppState {
   name: string;
   /** Epoch ms of the last edit to `name`, for last-write-wins across devices. */
   nameUpdatedAt: number;
+  /**
+   * Epoch ms of the last edit to a *portable* preference.
+   *
+   * Only the preferences in `PORTABLE_PREF_KEYS` advance this. A device-scoped
+   * one must not: dismissing a banner here would otherwise carry a newer
+   * timestamp than a model chosen on another device and quietly overwrite it.
+   */
+  prefsUpdatedAt: number;
   habits: Habit[];
   log: CompletionLog;
   prefs: Prefs;
