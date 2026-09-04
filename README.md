@@ -55,18 +55,33 @@ its own — Settings ▸ *Home screen shortcut* ▸ **Show again** is the only w
 back. Dismissing with *Not now* snoozes it for 14 days.
 
 **Sign in, if you want a copy elsewhere.** A quieter card in the same slot
-offers it, and disappears the moment there is a session — signing out puts it
-back, so unlike the install CTA it needs nothing in Settings to re-arm it. It
-waits for the session lookup to answer before appearing: the sync status reads
-"signed-out" until `getSession` says otherwise, which is right for rendering but
-a guess, and acting on it early would flash this at every signed-in person on
-every cold start. *Not now* snoozes it for 21 days.
+offers it, and it is there for as long as there is no session and nobody has
+dismissed it. The cross dismisses it for good — a cross is an answer, and
+Settings still has the sign-in form for anyone who changes their mind.
 
-Only one of the two shows at a time. Both are full-width cards above the habit
-list, and stacking them pushes the habits off the screen — which is what
-somebody opened the app for. Install goes first because taking it also earns
-persistent storage, so it makes the local copy sturdier as well; this one takes
-its turn once that is installed or snoozed.
+It waits for the session lookup to answer before appearing: nothing is known
+until `getSession` replies, and acting early would flash this at every signed-in
+person on every cold start.
+
+Two things about this were wrong in the first version, and both are worth
+recording because they only showed up on a real device.
+
+It asked `status === "signed-out"`. But `status` describes the *sync*, not the
+person: it passes through "syncing" on every run — one fires on every
+foreground and 2.5 seconds after any local change — and lands on "offline" or
+"error" when one fails. None of those equal "signed-out", so the card appeared
+on load and then vanished seconds later, permanently after any failure, for
+somebody who had never signed in at all. Whether there is a session is a
+separate fact that does not move while a sync runs, so `useSync` now exposes it
+as a separate flag and the rule lives in `lib/signInOffer.ts` where it can be
+tested. `run()` also gained a `catch`: a rejection used to leave the status on
+"syncing" for the rest of the session.
+
+It was also hidden whenever the install banner was showing, on the reasoning
+that two full-width cards push the habits off the screen. That reasoning was
+fine and the consequence was not: on a phone that had not installed the app,
+the install card is showing more or less always, so the sign-in offer was
+effectively never rendered. Both can now appear.
 
 ---
 

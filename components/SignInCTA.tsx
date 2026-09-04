@@ -1,54 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { shouldOfferSignIn } from "@/lib/signInOffer";
 import { useSyncView } from "./SyncProvider";
 import { haptic } from "@/lib/confetti";
-import { CloudArrowUp, ICON_WEIGHT } from "./icons";
-
-/** How long a dismissal sticks before the banner is allowed back. */
-const SNOOZE_DAYS = 21;
+import { CloudArrowUp, X, ICON_WEIGHT } from "./icons";
 
 /**
  * Whether to offer signing in.
  *
- * Three things have to be true, and each rules out a way of getting this
- * wrong:
+ * Two things have to be true, and the first one is the whole lesson of this
+ * file.
  *
- * `ready` — `status` reads "signed-out" before the session has been looked up,
- * because that is the right thing to render while nothing is known. Acting on
- * it early would flash this at every signed-in person on every cold start.
+ * `signedIn` — not `status === "signed-out"`, which is what this used to ask
+ * and which was wrong in a way that only showed up on a real device. `status`
+ * describes the *sync*: it passes through "syncing" on every run, and lands on
+ * "offline" or "error" when one fails. None of those equal "signed-out", so
+ * the offer vanished mid-sync and stayed gone after any failure — for somebody
+ * who had never signed in at all. It looked like the banner flashing up and
+ * disappearing. Whether there is a session is a separate, stable fact, so it
+ * is now a separate, stable flag.
  *
- * `status === "signed-out"` — not merely "no `userId` locally". A session can
- * be revoked or expire server-side, and the status is what actually knows.
- * Signing out puts the offer back, which is why nothing needs to re-arm it the
- * way the install CTA does.
+ * Not dismissed — a cross is an answer, and it is taken as final. Signing out
+ * later does not bring it back, which is the point of dismissing it.
  *
- * Not snoozed — dismissing it is an answer, and asking again tomorrow would
- * make it noise rather than an offer.
+ * `ready` still gates the whole thing: nothing is known until `getSession`
+ * answers, and acting early would flash this at every signed-in person on
+ * every cold start.
  *
- * `status` is also "disabled" on a deployment with no Supabase project, which
- * excludes it here: there would be nothing behind the button.
+ * Deliberately *not* conditional on the install banner. It used to be, and on
+ * a phone that had not installed the app yet, that hid this permanently.
  */
 export function useSignInCTA() {
   const { state, setPrefs } = useStore();
-  const { status, ready } = useSyncView();
+  const { signedIn, ready, status } = useSyncView();
 
-  // Sampled in an effect rather than read during render: `Date.now()` is
-  // impure, and a component that renders differently depending on when React
-  // happened to call it is a bug waiting for a slow frame. Re-sampled when the
-  // tab comes back, because an installed app is often left open for weeks and
-  // would otherwise compare against the clock from whenever it was launched.
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    const sample = () => setNow(Date.now());
-    sample();
-    document.addEventListener("visibilitychange", sample);
-    return () => document.removeEventListener("visibilitychange", sample);
-  }, []);
+  const visible = shouldOfferSignIn({
+    ready,
+    status,
+    signedIn,
+    dismissed: state.prefs.signInDismissed,
+  });
 
-  const visible =
-    ready && status === "signed-out" && now >= state.prefs.signInDismissedUntil;
   return { visible, setPrefs };
 }
 
@@ -61,6 +54,15 @@ export function SignInCTA({ onSignIn }: { onSignIn: () => void }) {
       aria-labelledby="signin-cta-heading"
       className="relative overflow-hidden rounded-[1.75rem] border border-white/12 bg-white/5 p-5 animate-rise"
     >
+      <button
+        type="button"
+        onClick={() => setPrefs({ signInDismissed: true })}
+        aria-label="Dismiss"
+        className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full text-bone/35 transition hover:bg-white/10 hover:text-bone/80 active:scale-90"
+      >
+        <X size={16} weight={ICON_WEIGHT} aria-hidden />
+      </button>
+
       <div className="flex items-start gap-3.5">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/8 text-bone/70">
           <CloudArrowUp size={20} weight={ICON_WEIGHT} aria-hidden />
@@ -69,7 +71,11 @@ export function SignInCTA({ onSignIn }: { onSignIn: () => void }) {
           <p className="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-bone/40">
             Only on this device
           </p>
-          <h2 id="signin-cta-heading" className="mt-1 text-lg font-bold leading-tight text-bone">
+          {/* Room for the cross, so a long heading cannot run under it. */}
+          <h2
+            id="signin-cta-heading"
+            className="mt-1 pr-6 text-lg font-bold leading-tight text-bone"
+          >
             Keep your streaks if this phone doesn&rsquo;t
           </h2>
           <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-bone/55">
@@ -78,29 +84,16 @@ export function SignInCTA({ onSignIn }: { onSignIn: () => void }) {
             you can read.
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                haptic(12);
-                onSignIn();
-              }}
-              className="rounded-full bg-bone px-5 py-2.5 text-sm font-bold text-ink transition active:scale-95"
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setPrefs({
-                  signInDismissedUntil: Date.now() + SNOOZE_DAYS * 86_400_000,
-                })
-              }
-              className="rounded-full px-4 py-2.5 text-sm font-semibold text-bone/45 transition hover:bg-white/8 hover:text-bone/80 active:scale-95"
-            >
-              Not now
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              haptic(12);
+              onSignIn();
+            }}
+            className="mt-4 rounded-full bg-bone px-5 py-2.5 text-sm font-bold text-ink transition active:scale-95"
+          >
+            Sign in
+          </button>
         </div>
       </div>
     </section>

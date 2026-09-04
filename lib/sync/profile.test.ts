@@ -8,7 +8,7 @@ const PREFS: Prefs = {
   installed: false,
   installRequested: false,
   installDismissedUntil: 0,
-  signInDismissedUntil: 0,
+  signInDismissed: false,
   iconBadge: false,
   backfillDismissedOn: "",
   aiInsights: false,

@@ -15,7 +15,7 @@ const TOMBSTONE_TTL_MS = 90 * 86_400_000;
 
 const DEFAULT_PREFS: Prefs = {
   installDismissedUntil: 0,
-  signInDismissedUntil: 0,
+  signInDismissed: false,
   installed: false,
   installRequested: false,
   reduceMotion: false,

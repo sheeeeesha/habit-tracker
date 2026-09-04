@@ -18,7 +18,7 @@ import {
 import { HabitCard } from "@/components/HabitCard";
 import { HabitDetailSheet } from "@/components/HabitDetailSheet";
 import { HabitSheet } from "@/components/HabitSheet";
-import { InstallCTA, useInstallCTA } from "@/components/InstallCTA";
+import { InstallCTA } from "@/components/InstallCTA";
 import { SignInCTA } from "@/components/SignInCTA";
 import { MenuSheet } from "@/components/MenuSheet";
 import { YesterdaySheet } from "@/components/YesterdaySheet";
@@ -70,7 +70,6 @@ export default function HomePage() {
   const { state, habits, hydrated, setPrefs, suggestAccent } = useStore();
   const [filter, setFilter] = useState<Filter>("today");
   const [menuOpen, setMenuOpen] = useState(false);
-  const { visible: installCTAVisible } = useInstallCTA();
   const [yesterdayOpen, setYesterdayOpen] = useState(false);
   const [editing, setEditing] = useState<Habit | null>(null);
   const [detail, setDetail] = useState<Habit | null>(null);
@@ -302,7 +301,7 @@ export default function HomePage() {
               install offer goes first because it also earns persistent
               storage, so taking it makes the local copy sturdier too; this one
               gets its turn once that is installed or snoozed. */}
-          {!installCTAVisible && <SignInCTA onSignIn={() => setMenuOpen(true)} />}
+          <SignInCTA onSignIn={() => setMenuOpen(true)} />
 
           {/* Filters --------------------------------------------------- */}
           {active.length > 0 && (

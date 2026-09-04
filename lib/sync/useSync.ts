@@ -29,6 +29,17 @@ export interface SyncView {
    * person on every cold start.
    */
   ready: boolean;
+  /**
+   * Whether there is a session, independent of what sync is doing.
+   *
+   * Deliberately separate from `status`. `status` is about the *sync* — it
+   * passes through "syncing", and lands on "offline" or "error" when one
+   * fails — so asking "is this person signed out?" by testing
+   * `status === "signed-out"` answers no during every sync and after every
+   * failure, for somebody who never signed in at all. Anything shown because
+   * a person is signed out must read this instead.
+   */
+  signedIn: boolean;
   email: string | null;
   lastSyncedAt: number | null;
   error: string | null;
@@ -81,6 +92,7 @@ export function useSync(): SyncView {
   );
   // Nothing to look up when there is no project, so that case is ready at once.
   const [ready, setReady] = useState(!isSyncConfigured);
+  const [signedIn, setSignedIn] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -88,10 +100,19 @@ export function useSync(): SyncView {
   const run = useCallback(async () => {
     if (!isSyncConfigured) return;
     setStatus("syncing");
-    const outcome = await syncNow();
-    setStatus(statusFrom(outcome));
-    setError(outcome.status === "error" ? outcome.message : null);
-    setLastSyncedAt(readState().sync.lastSyncedAt);
+    try {
+      const outcome = await syncNow();
+      setStatus(statusFrom(outcome));
+      setError(outcome.status === "error" ? outcome.message : null);
+      setLastSyncedAt(readState().sync.lastSyncedAt);
+    } catch (err) {
+      // `syncNow` reports failures in its outcome rather than throwing, but a
+      // rejection here would otherwise leave the status on "syncing" for the
+      // rest of the session — a spinner that never stops, and every "are we
+      // syncing?" check answering yes forever.
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Sync failed.");
+    }
   }, []);
 
   // Auth session. `onAuthStateChange` is an external subscription, so writing
@@ -110,6 +131,7 @@ export function useSync(): SyncView {
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (callbackError) setError(callbackError);
+      setSignedIn(!!data.session);
       setEmail(data.session?.user.email ?? null);
       if (data.session) void run();
       else setStatus(callbackError ? "error" : "signed-out");
@@ -117,6 +139,7 @@ export function useSync(): SyncView {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session);
       setEmail(session?.user.email ?? null);
       if (session) {
         setError(null);
@@ -160,5 +183,5 @@ export function useSync(): SyncView {
     };
   }, [run]);
 
-  return { status, ready, email, lastSyncedAt, error, sync: () => void run() };
+  return { status, ready, signedIn, email, lastSyncedAt, error, sync: () => void run() };
 }

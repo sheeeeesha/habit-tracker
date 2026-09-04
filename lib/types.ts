@@ -46,7 +46,7 @@ export interface Prefs {
    * Device-scoped like the install one, and deliberately not portable:
    * dismissing a banner on a laptop is not a decision about a phone.
    */
-  signInDismissedUntil: number;
+  signInDismissed: boolean;
   /** Set once the app has actually been installed to the home screen. */
   installed: boolean;
   /** Lets the user re-summon the CTA from the menu after dismissing it. */
