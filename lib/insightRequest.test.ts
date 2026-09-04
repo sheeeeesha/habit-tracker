@@ -205,25 +205,75 @@ describe("finding the JSON", () => {
 });
 
 describe("accepting the fields", () => {
+  const obs = (over: Record<string, unknown> = {}) => ({
+    title: "Sundays",
+    body: "b",
+    basis: "42%",
+    chart: "weekday",
+    ...over,
+  });
+
   it("takes a complete reply", () => {
     const out = coerceInsight({
       headline: " Sundays ",
-      reading: "r",
-      suggestion: "s",
-      basis: "b",
+      observations: [obs(), obs({ title: "Recovery", chart: "recovery" })],
     });
     assert.equal(out?.headline, "Sundays", "should be trimmed");
+    assert.equal(out?.observations.length, 2);
+    assert.equal(out?.observations[0].chart, "weekday");
   });
 
   it("rejects a partial reply rather than rendering blanks", () => {
-    assert.equal(coerceInsight({ headline: "a", reading: "b" }), null);
-    assert.equal(coerceInsight({ headline: "", reading: "b", suggestion: "c" }), null);
+    assert.equal(coerceInsight({ observations: [obs(), obs()] }), null, "no headline");
+    assert.equal(coerceInsight({ headline: "a" }), null, "no observations");
+    assert.equal(coerceInsight({ headline: "a", observations: "nope" }), null);
     assert.equal(coerceInsight(null), null);
     assert.equal(coerceInsight("a string"), null);
   });
 
+  it("rejects a reading too thin to be worth showing", () => {
+    // One observation is not a reading; it is the old single-paragraph shape
+    // wearing the new one's clothes.
+    assert.equal(coerceInsight({ headline: "a", observations: [obs()] }), null);
+  });
+
+  it("drops observations missing their claim, and fails if too few survive", () => {
+    assert.equal(
+      coerceInsight({ headline: "a", observations: [obs(), obs({ body: "" }), obs()] })
+        ?.observations.length,
+      2,
+    );
+    assert.equal(
+      coerceInsight({ headline: "a", observations: [obs(), obs({ title: "" })] }),
+      null,
+    );
+  });
+
+  it("keeps at most three, however many arrive", () => {
+    const out = coerceInsight({
+      headline: "a",
+      observations: [obs(), obs(), obs(), obs(), obs()],
+    });
+    assert.equal(out?.observations.length, 3);
+  });
+
   it("fills in only the citation, which is presentational", () => {
-    const out = coerceInsight({ headline: "a", reading: "b", suggestion: "c" });
-    assert.equal(out?.basis, "the figures above");
+    const out = coerceInsight({
+      headline: "a",
+      observations: [obs({ basis: "" }), obs()],
+    });
+    assert.equal(out?.observations[0].basis, "the figures above");
+  });
+
+  it("drops an unknown chart instead of failing the whole reading", () => {
+    // "none" is in the schema the model is given; anything else is a model
+    // inventing a chart. Either way the prose is still good.
+    const out = coerceInsight({
+      headline: "a",
+      observations: [obs({ chart: "none" }), obs({ chart: "piechart" }), obs({ chart: 7 })],
+    });
+    assert.equal(out?.observations[0].chart, null);
+    assert.equal(out?.observations[1].chart, null);
+    assert.equal(out?.observations[2].chart, null);
   });
 });

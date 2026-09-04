@@ -33,25 +33,36 @@ import {
 
 export const runtime = "nodejs";
 
+const ChartEnum = z
+  .enum(["automaticity", "trend", "weekday", "recovery", "none"])
+  .describe(
+    "Which chart the app should draw beside this observation, or 'none'. You are choosing from charts the app already draws from its own figures — you never supply chart data.",
+  );
+
 const InsightSchema = z.object({
   headline: z
     .string()
-    .describe("At most 8 words naming the pattern. No greeting, no praise."),
-  reading: z
-    .string()
-    .describe(
-      "Two or three sentences on what these numbers show that is not obvious from looking at them. Cite the actual figures.",
-    ),
-  suggestion: z
-    .string()
-    .describe(
-      "One concrete change to try, specific to this pattern. Not 'stay consistent'.",
-    ),
-  basis: z
-    .string()
-    .describe(
-      "The single figure this reading rests on, quoted, so the reader can check it.",
-    ),
+    .describe("At most 8 words naming the overall pattern. No greeting, no praise."),
+  observations: z
+    .array(
+      z.object({
+        title: z
+          .string()
+          .describe("At most 6 words. The claim itself, not a topic label."),
+        body: z
+          .string()
+          .describe(
+            "One or two sentences on what this shows that is not obvious from glancing at the chart. Cite the actual figures.",
+          ),
+        basis: z
+          .string()
+          .describe("The single figure this rests on, quoted, so the reader can check it."),
+        chart: ChartEnum,
+      }),
+    )
+    .min(2)
+    .max(3)
+    .describe("Two or three separate observations. Each must stand on its own."),
 });
 
 const SYSTEM = `You read habit-tracking statistics and write a short, specific interpretation.
@@ -63,8 +74,23 @@ RULES
 - Never state a number that is not in the payload. Do not add, average, project, or estimate. If you want to say something a figure does not support, say something else.
 - No greetings, no praise, no exclamation marks, no emoji. "Great job" is not a reading.
 - Say something the person could not see by glancing at the chart. If the only honest observation is obvious, say the obvious thing plainly rather than inflating it.
-- One suggestion, concrete enough to act on tomorrow. "Be more consistent" is not a suggestion; "move it before your commute on Sundays" is.
+- Two or three observations, each standing on its own. Do not restate one in different words to reach three — two good ones beat three padded.
+- At least one of them should be actionable: concrete enough to act on tomorrow. "Be more consistent" is not actionable; "move it before your commute on Sundays" is.
 - Address the person as "you". Be direct and unsentimental. British spelling.
+
+CHOOSING A CHART
+Each observation may name one chart for the app to draw beside it, or "none". You are picking from charts the app draws itself, from its own figures — you never supply the data, and a chart you name will show the real numbers whether or not they support what you wrote.
+- "automaticity" — repetitions so far against the Lally curve. For anything about how established the habit is.
+- "trend" — completion rate over time. For direction of travel.
+- "weekday" — completion rate per weekday. Daily habits only, and only when the profile is uneven.
+- "recovery" — came back against slid into two. For anything about what happens after a miss.
+- "none" — when no chart adds to the point. Preferred over a loosely related one; a chart that does not match its paragraph reads as a mistake.
+Do not name the same chart twice.
+
+WHAT HAS CHANGED SINCE LAST TIME
+If the payload has a "since" block, a previous reading exists and the differences in it have already been calculated for you. Use them: what moved since then is usually the most interesting thing on the page. Never compute a change yourself, and never compare against a figure that is not in that block.
+If "since" is absent or null, this is the first reading — say nothing about change, progress, or improvement, because you have nothing to compare against.
+"since.alreadySaid" lists what previous readings led with. Do not make those points again unless the underlying figure has moved enough to be worth revisiting, in which case say what moved.
 
 WHAT THE RESEARCH SAYS, so your reading is consistent with the rest of the app
 - Automaticity climbs with repetitions, not elapsed days (Lally et al. 2010). The median to near-automatic was 66 repetitions, with an individual range of 18 to 254 — so never promise a date, and never imply the median is a deadline.
@@ -79,7 +105,8 @@ const JSON_INSTRUCTION = `
 
 OUTPUT
 Reply with a single JSON object and nothing else. No markdown fence, no commentary before or after it.
-{"headline": string, "reading": string, "suggestion": string, "basis": string}`;
+{"headline": string, "observations": [{"title": string, "body": string, "basis": string, "chart": "automaticity" | "trend" | "weekday" | "recovery" | "none"}]}
+Give two or three observations.`;
 
 const ok = (fields: unknown) => Response.json(fields);
 const fail = (message: string, status: number) =>

@@ -1,6 +1,9 @@
 "use client";
 
 import { Sparkle, ICON_WEIGHT } from "./icons";
+import { AutomaticityChart, RecoveryBar, TrendChart, WeekdayChart } from "./charts";
+import { chartAvailable } from "@/lib/insightCharts";
+import type { ChartKind } from "@/lib/insightRequest";
 import { useAiInsight } from "@/lib/useAiInsight";
 import { useStore } from "@/lib/store";
 import { findModel } from "@/lib/insightModels";
@@ -14,6 +17,39 @@ interface InsightReadingProps {
   color: string;
   /** Off until someone turns it on in Settings — nothing leaves the device otherwise. */
   enabled: boolean;
+}
+
+/**
+ * Draws the chart an observation asked for.
+ *
+ * Every one of these is fed from `stats` — the same figures the panels above
+ * are drawn from. The model's only input is which of the four to show.
+ */
+function Chart({
+  kind,
+  stats,
+  color,
+}: {
+  kind: ChartKind;
+  stats: HabitAnalytics;
+  color: string;
+}) {
+  switch (kind) {
+    case "automaticity":
+      return <AutomaticityChart repetitions={stats.automaticity.repetitions} color={color} />;
+    case "trend":
+      return <TrendChart points={stats.trend} color={color} />;
+    case "weekday":
+      return <WeekdayChart rates={stats.weekdays} color={color} />;
+    case "recovery":
+      return (
+        <RecoveryBar
+          recovered={stats.recovery.recovered}
+          slipped={stats.recovery.slipped}
+          color={color}
+        />
+      );
+  }
 }
 
 /**
@@ -49,25 +85,35 @@ export function InsightReading({ habit, stats, color, enabled }: InsightReadingP
           <p className="display-md" style={{ color }}>
             {insight.headline}
           </p>
-          <p className="mt-2.5 text-sm leading-relaxed text-bone/70">{insight.reading}</p>
 
-          <div
-            className="mt-3 rounded-2xl px-4 py-3"
-            style={{ background: `color-mix(in srgb, ${color} 10%, transparent)` }}
-          >
-            <p className="text-[0.625rem] font-bold uppercase tracking-[0.14em] text-bone/40">
-              Try this
-            </p>
-            <p className="mt-1 text-sm font-medium leading-relaxed text-bone">
-              {insight.suggestion}
-            </p>
-          </div>
+          <ul className="mt-3 space-y-2.5">
+            {insight.observations.map((o, i) => (
+              <li
+                key={i}
+                className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3.5"
+              >
+                <p className="text-[0.9375rem] font-semibold leading-snug text-bone">
+                  {o.title}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-bone/65">{o.body}</p>
 
-          {/* The figure it leaned on, so the reading can be checked against
-              the charts rather than taken on trust. */}
-          <p className="mt-3 text-xs leading-relaxed text-bone/40">
-            Based on: {insight.basis}
-          </p>
+                {/* Drawn here from the same figures as the panels above, never
+                    from anything the model sent. It picked which chart; the
+                    numbers in it are the app's own. */}
+                {o.chart && chartAvailable(o.chart, stats) && (
+                  <div className="mt-3">
+                    <Chart kind={o.chart} stats={stats} color={color} />
+                  </div>
+                )}
+
+                {/* The figure it leaned on, so each point can be checked
+                    against the charts rather than taken on trust. */}
+                <p className="mt-2.5 text-xs leading-relaxed text-bone/35">
+                  Based on: {o.basis}
+                </p>
+              </li>
+            ))}
+          </ul>
 
           <button
             type="button"
@@ -89,9 +135,10 @@ export function InsightReading({ habit, stats, color, enabled }: InsightReadingP
         <>
           <p className="text-sm leading-relaxed text-bone/55">
             Everything above is computed on this device. This asks {modelLabel}{" "}
-            to read those same figures back and say what stands out &mdash; it is
-            given the numbers, never your check-ins, and cites which figure it
-            used so you can check it against the charts.
+            to read those same figures back and pick out two or three things
+            that stand out. It is given the numbers, never your check-ins; each
+            point cites the figure it rests on, and any chart beside it is
+            drawn here from that same figure rather than by the model.
           </p>
           {status === "error" && (
             <p className="mt-2 text-xs font-medium text-hyperpink">{error}</p>

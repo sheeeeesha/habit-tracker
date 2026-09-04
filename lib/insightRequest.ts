@@ -192,32 +192,82 @@ function tryParse(candidate: string): unknown | null {
   }
 }
 
-export interface InsightFields {
-  headline: string;
-  reading: string;
-  suggestion: string;
-  basis: string;
+/**
+ * The charts a reading may point at.
+ *
+ * The model chooses from this list; it never sends chart data. The client then
+ * draws the named chart from the figures it already has, so a chart beside an
+ * observation is always the real one and the model has no way to invent a
+ * data point. It is the same rule as the prose — narrate the figures, do not
+ * compute them — applied to the pictures.
+ *
+ * The year heatmap is deliberately absent. It is the one chart drawn from raw
+ * check-ins rather than computed figures, and this feature is only ever handed
+ * figures.
+ */
+export const CHART_KINDS = ["automaticity", "trend", "weekday", "recovery"] as const;
+export type ChartKind = (typeof CHART_KINDS)[number];
+
+function asChart(value: unknown): ChartKind | null {
+  return typeof value === "string" && (CHART_KINDS as readonly string[]).includes(value)
+    ? (value as ChartKind)
+    : null;
 }
 
+export interface Observation {
+  title: string;
+  body: string;
+  /** The figure this rests on, quoted, so a reader can check it. */
+  basis: string;
+  /** Which chart supports it, if any. */
+  chart: ChartKind | null;
+}
+
+export interface InsightFields {
+  headline: string;
+  observations: Observation[];
+}
+
+/** How many observations a reading may carry. Fewer is allowed; more is noise. */
+export const MIN_OBSERVATIONS = 2;
+export const MAX_OBSERVATIONS = 3;
+
 /**
- * Accepts a reply only if every field is actually present.
+ * Accepts a reply only if it is actually usable.
  *
  * A partial object rendered as a card with blanks in it looks like a bug in
  * the app rather than a shortfall in the model, so a missing field is a
  * failure the caller can retry, not something to paper over with "".
+ *
+ * An unrecognised chart name is the exception: it is dropped to null rather
+ * than failing the whole reading, because the prose is still good and a model
+ * inventing a fifth chart type is a small, expected miss.
  */
 export function coerceInsight(value: unknown): InsightFields | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
-  const text = (k: string) => (typeof v[k] === "string" ? (v[k] as string).trim() : "");
+  const text = (source: Record<string, unknown>, k: string) =>
+    typeof source[k] === "string" ? (source[k] as string).trim() : "";
 
-  const fields: InsightFields = {
-    headline: text("headline"),
-    reading: text("reading"),
-    suggestion: text("suggestion"),
-    basis: text("basis"),
-  };
-  if (!fields.headline || !fields.reading || !fields.suggestion) return null;
-  if (!fields.basis) fields.basis = "the figures above";
-  return fields;
+  const headline = text(v, "headline");
+  if (!headline) return null;
+  if (!Array.isArray(v.observations)) return null;
+
+  const observations: Observation[] = [];
+  for (const raw of v.observations) {
+    if (!raw || typeof raw !== "object") continue;
+    const o = raw as Record<string, unknown>;
+    const title = text(o, "title");
+    const body = text(o, "body");
+    if (!title || !body) continue;
+    observations.push({
+      title,
+      body,
+      basis: text(o, "basis") || "the figures above",
+      chart: asChart(o.chart),
+    });
+  }
+
+  if (observations.length < MIN_OBSERVATIONS) return null;
+  return { headline, observations: observations.slice(0, MAX_OBSERVATIONS) };
 }

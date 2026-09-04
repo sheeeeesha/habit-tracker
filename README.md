@@ -412,11 +412,42 @@ payload contains no date and no log, because that property is the only thing
 making a written insight trustworthy. The reading can be wrong about meaning,
 which is arguable; it cannot be wrong about arithmetic.
 
-It must also cite the figure it leaned on, and that citation is shown, so the
-reading can be checked against the charts rather than taken on trust. The
-prompt carries the same research the panels do, so the advice cannot contradict
-them — no promising a date from the 66-repetition median, and treating a weak
-weekday as a scheduling problem rather than a character one.
+A reading is **two or three separate observations**, each with its own title,
+its own paragraph, and the figure it rests on quoted underneath — so each point
+can be checked against the charts rather than taken on trust. Fewer than two is
+rejected rather than shown: one paragraph in a list of three is the old shape
+wearing the new one's clothes. The prompt carries the same research the panels
+do, so the advice cannot contradict them — no promising a date from the
+66-repetition median, and treating a weak weekday as a scheduling problem
+rather than a character one.
+
+**The model picks charts; it never draws them.** An observation may name one of
+four charts the app already knows how to draw — the automaticity curve, the
+trend line, the weekday profile, the recovery split — and the client renders it
+from the same figures as the panels above. The model has no way to supply a
+data point, so a chart beside a paragraph is always the real one. The year
+heatmap is deliberately not on the menu: it is the one chart drawn from raw
+check-ins rather than computed figures, and this feature is only ever handed
+figures.
+
+A chart the figures cannot support is dropped and the paragraph kept. The model
+is not told which charts this particular habit allows, so it will sometimes ask
+for a weekday breakdown of a monthly habit, or a recovery split for somebody
+who has never missed. Rendering those would produce a row of zeroes and read as
+a bug in the app; an observation with no picture beside it reads as deliberate.
+
+**It remembers the last few readings.** A local journal per habit keeps the
+figures each reading was written about and the titles it led with. On the next
+reading the client subtracts the two snapshots itself and hands over the
+differences already calculated, along with what was said last time so it is not
+said again. The model narrates the change; it never works one out — the same
+rule as the charts, and for the same reason. With no previous reading the block
+is absent and the prompt says so explicitly, because a model asked what has
+changed, and told nothing, will invent something to have changed.
+
+The journal is local and never synced. It is model output, which has no
+business in the habit store or in anybody's database; a new device starts with
+no memory, which is the price of that.
 
 Readings are cached against a hash of the exact numbers that produced them.
 Opening the page twice costs one request, and when a check-in moves the figures

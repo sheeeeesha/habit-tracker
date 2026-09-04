@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { ensureAiSessionId, readState } from "./store";
 import { buildInsightPayload, payloadKey, type InsightPayload } from "./insightPayload";
+import { appendToJournal, sinceLast, snapshotOf } from "./insightJournal";
+import type { InsightFields } from "./insightRequest";
 import type { HabitAnalytics } from "./analytics";
 import type { Habit } from "./types";
 
@@ -23,12 +25,7 @@ import type { Habit } from "./types";
 const CACHE_KEY = "streakwrapped.insights.v1";
 const MAX_CACHED = 40;
 
-export interface AiInsight {
-  headline: string;
-  reading: string;
-  suggestion: string;
-  basis: string;
-}
+export type AiInsight = InsightFields;
 
 type CacheShape = Record<string, AiInsight>;
 
@@ -97,6 +94,11 @@ export function useAiInsight(habit: Habit | null, stats: HabitAnalytics | null) 
     if (!habit || !stats || !key) return;
 
     const payload: InsightPayload = buildInsightPayload(habit, stats);
+    // Computed here, not by the model. `since` is deliberately outside the
+    // cache key: it changes every time a reading is filed, and folding it in
+    // would orphan the reading that had just been written.
+    const snapshot = snapshotOf(payload);
+    const since = sinceLast(habit.id, snapshot);
     const previous = readCache()[key] ?? null;
     // A cached reading stays on screen while the new one is fetched.
     setResult({ key, state: { status: "loading", insight: previous, error: null } });
@@ -119,7 +121,7 @@ export function useAiInsight(habit: Habit | null, stats: HabitAnalytics | null) 
       const res = await fetch("/api/insight", {
         method: "POST",
         headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, since }),
       });
       const body = await res.json().catch(() => null);
 
@@ -130,6 +132,13 @@ export function useAiInsight(habit: Habit | null, stats: HabitAnalytics | null) 
 
       const fresh = body as AiInsight;
       writeCache({ ...readCache(), [key]: fresh });
+      // Filed against the figures it was actually written about, so the next
+      // reading compares against the right numbers rather than today's.
+      appendToJournal(habit.id, {
+        at: Date.now(),
+        snapshot,
+        titles: fresh.observations.map((o) => o.title),
+      });
       setResult({ key, state: { status: "ready", insight: fresh, error: null } });
     } catch {
       fail("Couldn't reach the server.");
